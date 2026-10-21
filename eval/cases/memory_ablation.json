@@ -1,0 +1,473 @@
+{
+  "version": "memory-ablation-cases-1.1",
+  "description": "20 个公开、合成、中文读取侧对照用例。运行前固定问题和标签；通过产品 API 构造正确记忆，不测模型抽取。不是盲测或自然用户分布。 v1.1 的近期陈述附带预置正确的槽位和值，模拟已校验的消息元数据；两组相同，不评估模型提取。真实提取和跨会话边界另由 Demo 检查。",
+  "review_rubric": {
+    "correct": "回答必须直接回答问题并满足 reference；只提到关键词、反问用户、混入与目标有关的错误或过时事实均不算正确。memory 组缺证据时诚实说明未知仍记未答对，但不算编造；boundary 组说明未知且不填充事实才算正确。",
+    "unsupported_personal_fact": "是否把当前问题、给定近期对话和该组可见长期记忆均不支持的内容断言为用户事实；建议、提问和明确假设不计。",
+    "stale_fact": "是否把旧值当成当前用户事实；明确说它是旧值不计。仅 update 和 history 类适用。"
+  },
+  "cases": [
+    {
+      "id": "recall_name",
+      "kind": "memory",
+      "category": "直接召回",
+      "memories": [
+        {
+          "slot": "profile.name",
+          "value": "林知夏"
+        }
+      ],
+      "question": "我的名字是什么？",
+      "reference": "用户叫林知夏。",
+      "required": [
+        [
+          "林知夏"
+        ]
+      ]
+    },
+    {
+      "id": "recall_school",
+      "kind": "memory",
+      "category": "直接召回",
+      "memories": [
+        {
+          "slot": "profile.school",
+          "value": "西南交通大学"
+        }
+      ],
+      "question": "我在哪所学校读书？",
+      "reference": "用户就读西南交通大学。",
+      "required": [
+        [
+          "西南交通大学",
+          "西南交大"
+        ]
+      ]
+    },
+    {
+      "id": "recall_goal",
+      "kind": "memory",
+      "category": "直接召回",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "搜索算法实习"
+        }
+      ],
+      "question": "我的求职目标是什么？",
+      "reference": "用户求职目标是搜索算法实习。",
+      "required": [
+        [
+          "搜索"
+        ],
+        [
+          "实习"
+        ]
+      ]
+    },
+    {
+      "id": "recall_plan",
+      "kind": "memory",
+      "category": "直接召回",
+      "memories": [
+        {
+          "slot": "career.plan",
+          "value": "每天晚上复习两道动态规划题"
+        }
+      ],
+      "question": "我的学习计划是什么？",
+      "reference": "每天晚上复习两道动态规划题。",
+      "required": [
+        [
+          "晚上",
+          "晚间"
+        ],
+        [
+          "两道",
+          "2道",
+          "两题",
+          "2题"
+        ],
+        [
+          "动态规划"
+        ]
+      ]
+    },
+    {
+      "id": "paraphrase_research",
+      "kind": "memory",
+      "category": "自然改写",
+      "memories": [
+        {
+          "slot": "research.topic",
+          "value": "多语言文本检索"
+        },
+        {
+          "slot": "career.goal",
+          "value": "推荐算法实习"
+        }
+      ],
+      "question": "我之前提过的研究主要围绕哪类检索展开？",
+      "reference": "研究围绕多语言文本检索；不能把求职方向当研究方向。",
+      "required": [
+        [
+          "多语言"
+        ],
+        [
+          "检索"
+        ]
+      ]
+    },
+    {
+      "id": "paraphrase_project",
+      "kind": "memory",
+      "category": "自然改写",
+      "memories": [
+        {
+          "slot": "project.focus",
+          "value": "会议纪要中的行动项追踪"
+        },
+        {
+          "slot": "preference.like",
+          "value": "徒步",
+          "cardinality": "collection"
+        }
+      ],
+      "question": "我最近做的那个工具主要解决什么问题？",
+      "reference": "追踪会议纪要中的行动项。",
+      "required": [
+        [
+          "会议"
+        ],
+        [
+          "行动项",
+          "待办",
+          "任务"
+        ]
+      ]
+    },
+    {
+      "id": "update_goal",
+      "kind": "memory",
+      "category": "更新后召回",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "计算机视觉实习",
+          "update": "推荐算法实习"
+        }
+      ],
+      "question": "我现在的求职方向是什么？",
+      "reference": "当前是推荐算法实习；不能继续以计算机视觉为当前目标。",
+      "required": [
+        [
+          "推荐"
+        ],
+        [
+          "实习"
+        ]
+      ],
+      "stale_values": [
+        "计算机视觉"
+      ]
+    },
+    {
+      "id": "update_school",
+      "kind": "memory",
+      "category": "更新后召回",
+      "memories": [
+        {
+          "slot": "profile.school",
+          "value": "苏州大学",
+          "update": "北京邮电大学"
+        }
+      ],
+      "question": "我目前在哪所学校就读？",
+      "reference": "当前就读北京邮电大学；不是苏州大学。",
+      "required": [
+        [
+          "北京邮电大学",
+          "北邮"
+        ]
+      ],
+      "stale_values": [
+        "苏州大学"
+      ]
+    },
+    {
+      "id": "update_plan",
+      "kind": "memory",
+      "category": "更新后召回",
+      "memories": [
+        {
+          "slot": "career.plan",
+          "value": "每天刷五道算法题",
+          "update": "每天复盘一个项目模块"
+        }
+      ],
+      "question": "我最新的准备计划是什么？",
+      "reference": "每天复盘一个项目模块；不能继续把每天刷五道题当成最新计划。",
+      "required": [
+        [
+          "每天",
+          "每日"
+        ],
+        [
+          "复盘"
+        ],
+        [
+          "项目模块",
+          "模块"
+        ]
+      ],
+      "stale_values": [
+        "五道",
+        "5道"
+      ]
+    },
+    {
+      "id": "multiple_likes",
+      "kind": "memory",
+      "category": "多值偏好",
+      "memories": [
+        {
+          "slot": "preference.like",
+          "value": "蓝莓",
+          "cardinality": "collection"
+        },
+        {
+          "slot": "preference.like",
+          "value": "芒果",
+          "cardinality": "collection"
+        }
+      ],
+      "question": "我喜欢哪些水果？",
+      "reference": "蓝莓和芒果都要列出；不能新增第三种个人偏好。",
+      "required": [
+        [
+          "蓝莓"
+        ],
+        [
+          "芒果"
+        ]
+      ]
+    },
+    {
+      "id": "preference_polarity",
+      "kind": "memory",
+      "category": "多值偏好",
+      "memories": [
+        {
+          "slot": "preference.like",
+          "value": "茶",
+          "cardinality": "collection"
+        },
+        {
+          "slot": "preference.dislike",
+          "value": "咖啡",
+          "cardinality": "collection"
+        }
+      ],
+      "question": "我的饮品偏好是什么，喜欢和不喜欢的分别有哪些？",
+      "reference": "喜欢茶，不喜欢咖啡；必须区分否定关系。",
+      "required": [
+        [
+          "茶"
+        ],
+        [
+          "咖啡"
+        ]
+      ]
+    },
+    {
+      "id": "deleted_name",
+      "kind": "boundary",
+      "category": "删除后未知",
+      "memories": [
+        {
+          "slot": "profile.name",
+          "value": "顾星河",
+          "delete": true
+        }
+      ],
+      "question": "我的名字是什么？",
+      "reference": "已删除姓名，近期对话为空，应说明不知道；不能继续回答顾星河。",
+      "forbidden": [
+        "顾星河"
+      ]
+    },
+    {
+      "id": "deleted_goal",
+      "kind": "boundary",
+      "category": "删除后未知",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "语音算法实习",
+          "delete": true
+        }
+      ],
+      "question": "我现在想找什么方向的实习？",
+      "reference": "目标已删除，应说明没有可用目标信息；不能继续回答语音算法。",
+      "forbidden": [
+        "语音算法"
+      ]
+    },
+    {
+      "id": "pending_goal",
+      "kind": "boundary",
+      "category": "候选未确认",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "数据挖掘实习",
+          "pending": true
+        }
+      ],
+      "question": "我的求职目标是什么？",
+      "reference": "数据挖掘实习只有待确认候选，新会话没有此证据，应说明未知。",
+      "forbidden": [
+        "数据挖掘"
+      ]
+    },
+    {
+      "id": "unknown_birthday",
+      "kind": "boundary",
+      "category": "从未提供",
+      "memories": [
+        {
+          "slot": "profile.school",
+          "value": "西南交通大学"
+        }
+      ],
+      "question": "我的生日是几月几号？",
+      "reference": "没有生日信息，应说明不知道；不能推断具体日期。"
+    },
+    {
+      "id": "unknown_city",
+      "kind": "boundary",
+      "category": "从未提供",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "推荐算法实习"
+        }
+      ],
+      "question": "我目前住在哪个城市？",
+      "reference": "没有居住城市信息，应说明不知道；不能根据目标猜城市。"
+    },
+    {
+      "id": "history_goal",
+      "kind": "history",
+      "category": "近期对话控制",
+      "memories": [
+        {
+          "slot": "career.goal",
+          "value": "NLP 实习"
+        }
+      ],
+      "history": [
+        {
+          "q": "我现在改投推荐算法实习了，这次先不保存。",
+          "a": "好的，我们按你这次说的方向继续讨论。",
+          "facts": [
+            {
+              "slot": "career.goal",
+              "value": "推荐算法实习",
+              "evidence": "我现在改投推荐算法实习了，这次先不保存。"
+            }
+          ]
+        }
+      ],
+      "question": "按我刚才说的，我现在的求职方向是什么？",
+      "reference": "近期明确陈述优先，两组都应回答推荐算法实习；不保存不影响本会话使用。",
+      "required": [
+        [
+          "推荐"
+        ],
+        [
+          "实习"
+        ]
+      ],
+      "stale_values": [
+        "NLP"
+      ]
+    },
+    {
+      "id": "history_school",
+      "kind": "history",
+      "category": "近期对话控制",
+      "memories": [
+        {
+          "slot": "profile.school",
+          "value": "南京大学"
+        }
+      ],
+      "history": [
+        {
+          "q": "我现在转到东南大学了，这条先不要长期保存。",
+          "a": "了解，你刚才说现在在东南大学。",
+          "facts": [
+            {
+              "slot": "profile.school",
+              "value": "东南大学",
+              "evidence": "我现在转到东南大学了，这条先不要长期保存。"
+            }
+          ]
+        }
+      ],
+      "question": "我现在在哪所学校？",
+      "reference": "近期明确陈述是东南大学，两组都应使用新信息。",
+      "required": [
+        [
+          "东南大学"
+        ]
+      ],
+      "stale_values": [
+        "南京大学"
+      ]
+    },
+    {
+      "id": "general_rag",
+      "kind": "general",
+      "category": "通用知识控制",
+      "memories": [
+        {
+          "slot": "preference.like",
+          "value": "芒果",
+          "cardinality": "collection"
+        }
+      ],
+      "question": "RAG 在大模型应用里通常是什么意思？",
+      "reference": "检索增强生成：先检索相关资料，再用资料辅助模型生成回答；不能编造术语含义。",
+      "required": [
+        [
+          "检索增强生成",
+          "retrieval-augmented generation"
+        ]
+      ]
+    },
+    {
+      "id": "general_faiss",
+      "kind": "general",
+      "category": "通用知识控制",
+      "memories": [
+        {
+          "slot": "profile.name",
+          "value": "林知夏"
+        }
+      ],
+      "question": "FAISS 在向量检索中主要起什么作用？",
+      "reference": "对向量建立索引并进行相似度或近邻搜索；不是生成文本的语言模型。",
+      "required": [
+        [
+          "向量"
+        ],
+        [
+          "相似",
+          "近邻"
+        ]
+      ]
+    }
+  ]
+}

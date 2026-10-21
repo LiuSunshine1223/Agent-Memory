@@ -1,13 +1,27 @@
-# 排除大模型权重和数据库缓存 (防止 Git 崩溃)
-# 先封杀(*)，再特赦(!)
+# 模型资源与产品持久数据
 models/*
 !models/embedding.py
 !models/llm.py
-!models/reranker.py
 storage/*
 !storage/.gitkeep
 
-# 排除 Python 缓存和私密环境文件
+# Python 与运行缓存、临时输出
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+/cache/
+/tmp/
+outputs/
+
+# 本地环境配置、IDE 配置与虚拟环境
+.idea/
 .env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# 评测源码和固定用例保留，运行输出不提交
+/eval/results/
+/eval/tmp/

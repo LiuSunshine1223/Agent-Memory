@@ -1,0 +1,32 @@
+{"id": "route-0001", "lang": "zh", "split": "dev", "text": "我叫什么？", "expected_slots": ["profile.name"]}
+{"id": "route-0002", "lang": "zh", "split": "heldout", "text": "你还记得怎么称呼我吗？", "expected_slots": ["profile.name"]}
+{"id": "route-0003", "lang": "zh", "split": "dev", "text": "我在哪所学校？", "expected_slots": ["profile.school"]}
+{"id": "route-0004", "lang": "zh", "split": "heldout", "text": "我是哪个大学的？", "expected_slots": ["profile.school"]}
+{"id": "route-0005", "lang": "zh", "split": "dev", "text": "我的目标是什么？", "expected_slots": ["career.goal"]}
+{"id": "route-0006", "lang": "zh", "split": "heldout", "text": "我当前的求职方向是什么？", "expected_slots": ["career.goal"]}
+{"id": "route-0007", "lang": "zh", "split": "dev", "text": "我的计划是什么？", "expected_slots": ["career.plan"]}
+{"id": "route-0008", "lang": "zh", "split": "heldout", "text": "我之后准备干什么？", "expected_slots": ["career.plan"]}
+{"id": "route-0009", "lang": "zh", "split": "dev", "text": "我喜欢什么？", "expected_slots": ["preference.like"]}
+{"id": "route-0010", "lang": "zh", "split": "heldout", "text": "我偏好什么样的工作？", "expected_slots": ["preference.like"]}
+{"id": "route-0011", "lang": "zh", "split": "dev", "text": "我不喜欢什么？", "expected_slots": ["preference.dislike"]}
+{"id": "route-0012", "lang": "zh", "split": "heldout", "text": "我比较反感什么？", "expected_slots": ["preference.dislike"]}
+{"id": "route-0013", "lang": "zh", "split": "dev", "text": "我的研究方向是什么？", "expected_slots": ["research.topic"]}
+{"id": "route-0014", "lang": "zh", "split": "heldout", "text": "我平时研究哪个领域？", "expected_slots": ["research.topic"]}
+{"id": "route-0015", "lang": "zh", "split": "dev", "text": "我的项目核心是什么？", "expected_slots": ["project.focus"]}
+{"id": "route-0016", "lang": "zh", "split": "heldout", "text": "我的项目主要在做什么？", "expected_slots": ["project.focus"]}
+{"id": "route-0017", "lang": "en", "split": "dev", "text": "What's my name?", "expected_slots": ["profile.name"]}
+{"id": "route-0018", "lang": "en", "split": "heldout", "text": "Do you remember what to call me?", "expected_slots": ["profile.name"]}
+{"id": "route-0019", "lang": "en", "split": "dev", "text": "Which school do I go to?", "expected_slots": ["profile.school"]}
+{"id": "route-0020", "lang": "en", "split": "heldout", "text": "Where am I studying?", "expected_slots": ["profile.school"]}
+{"id": "route-0021", "lang": "en", "split": "dev", "text": "What is my goal?", "expected_slots": ["career.goal"]}
+{"id": "route-0022", "lang": "en", "split": "heldout", "text": "What kind of job am I aiming for?", "expected_slots": ["career.goal"]}
+{"id": "route-0023", "lang": "en", "split": "dev", "text": "What is my plan?", "expected_slots": ["career.plan"]}
+{"id": "route-0024", "lang": "en", "split": "heldout", "text": "What am I going to do next?", "expected_slots": ["career.plan"]}
+{"id": "route-0025", "lang": "en", "split": "dev", "text": "What do I like?", "expected_slots": ["preference.like"]}
+{"id": "route-0026", "lang": "en", "split": "heldout", "text": "What kind of work do I prefer?", "expected_slots": ["preference.like"]}
+{"id": "route-0027", "lang": "en", "split": "dev", "text": "What don't I like?", "expected_slots": ["preference.dislike"]}
+{"id": "route-0028", "lang": "en", "split": "heldout", "text": "What do I want to avoid?", "expected_slots": ["preference.dislike"]}
+{"id": "route-0029", "lang": "en", "split": "dev", "text": "What is my research topic?", "expected_slots": ["research.topic"]}
+{"id": "route-0030", "lang": "en", "split": "heldout", "text": "What field do I research?", "expected_slots": ["research.topic"]}
+{"id": "route-0031", "lang": "en", "split": "dev", "text": "What is my project about?", "expected_slots": ["project.focus"]}
+{"id": "route-0032", "lang": "en", "split": "heldout", "text": "What does my project focus on?", "expected_slots": ["project.focus"]}

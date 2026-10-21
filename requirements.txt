@@ -1,17 +1,16 @@
-# 核心深度学习与大模型底座
+# 嵌入模型与向量检索
 torch>=2.0.0
-transformers>=4.30.0
-accelerate>=0.21.0
-
-# 向量表征与 RAG 检索
 sentence-transformers>=2.2.2
-FlagEmbedding>=1.2.0
-faiss-gpu>=1.7.2
+# 新环境默认安装 CPU FAISS；BGE 的 CUDA 加速由 PyTorch 提供。
+# 已有 faiss-gpu 的环境按 README 第 2 节核对，不叠装两种 FAISS 发行包。
+faiss-cpu>=1.7.4
 
-# 基础数据处理与通信
+# 数值处理、HTTP 通信与环境配置
 numpy>=1.24.0
-pandas>=2.0.0
 requests>=2.31.0
-
-# 环境变量隔离
 python-dotenv>=1.0.0
+
+# HTTP API 与服务运行
+fastapi>=0.115.0,<0.116.0
+pydantic>=2.0.0,<3.0.0
+uvicorn>=0.30.0,<0.31.0

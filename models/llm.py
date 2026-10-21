@@ -1,29 +1,72 @@
-# OLLama模型接口 LLma3:8B 的简单封装，提供 ask 方法进行文本生成请求。
-# 使用 Ollama 托管跑（4-bit 量化，80亿参数 × 0.5 Bytes = 4GB）比 放在项目结构里裸跑（FP16量化，80亿参数 × 2 Bytes = 16GB）
-# 更省资源、更稳定，且无需担心显存溢出问题
+"""Small Ollama client used by the local workflow."""
+
 import requests
+from urllib.parse import urlsplit, urlunsplit
+
+
+class LLMUnavailableError(RuntimeError):
+    """Raised when Ollama cannot return a valid answer."""
+
 
 class LLMModel:
-    def __init__(self, url, model_name):
+    def __init__(self, url, model_name, timeout=120, *, options=None):
         self.url = url
         self.model = model_name
+        self.timeout = float(timeout)
+        self.options = {"temperature": 0.0, "top_p": 0.1, **dict(options or {})}
+        self.last_response_metadata = {}
 
-    def ask(self, prompt):
+    def ask(self, prompt, *, system=None):
+        return self._generate(prompt, system=system)
+
+    def ask_json(self, prompt, *, schema=None, system=None):
+        """Constrain syntax for structured tasks; callers still validate schema."""
+        return self._generate(prompt, json_mode=True, schema=schema, system=system)
+
+    def chat(self, messages):
+        """Preserve real user/assistant turns through Ollama's chat endpoint."""
+        self.last_response_metadata = {}
+        parts = urlsplit(self.url)
+        endpoint = urlunsplit(parts._replace(path=parts.path.rsplit("/", 1)[0] + "/chat"))
+        try:
+            response = requests.post(endpoint, json={
+                "model": self.model, "messages": messages, "stream": False,
+                "options": self.options,
+            }, timeout=self.timeout)
+            response.raise_for_status()
+            payload = response.json()
+            self.last_response_metadata = {key: payload.get(key) for key in (
+                "model", "done", "done_reason", "prompt_eval_count", "eval_count",
+                "total_duration", "load_duration", "prompt_eval_duration", "eval_duration",
+            )}
+            answer = payload.get("message", {}).get("content")
+            if not isinstance(answer, str) or not answer.strip():
+                raise ValueError("Ollama chat returned no answer")
+            return answer.strip()
+        except (requests.RequestException, ValueError, AttributeError) as exc:
+            raise LLMUnavailableError(f"Ollama chat failed: {exc}") from exc
+
+    def _generate(self, prompt, *, json_mode=False, system=None, schema=None):
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False, # 非流式输出，等待完整回复后再返回结果，适合一次性生成较长文本的场景
-            "options": {
-                "temperature": 0.0,  # 绝对理智，消除乱码和随机发散
-                "top_p": 0.1  # 极度收拢词汇表，只选最确定的词
-            }
+            "stream": False,
+            "options": self.options,
         }
+        if json_mode:
+            payload["format"] = schema or "json"
+        if system is not None:
+            payload["system"] = system
         try:
-            # timeout 设为 120 秒，给 8B 模型留足生成时间
-            # requests.post() 发送 HTTP POST 请求到指定 URL，携带 JSON 格式的 payload 作为请求体，并设置超时时间为 120 秒。
-            # Response 对象包含服务器返回的响应数据。
-            # 通过 response.json() 方法将响应内容解析为 JSON 格式，并使用 .get("response", "LLM 无返回内容") 提取其中的 "response" 字段，如果该字段不存在，则返回默认消息 "LLM 无返回内容"。
-            response = requests.post(self.url, json=payload, timeout=120)
-            return response.json().get("response", "LLM 无返回内容")
-        except Exception as e:
-            return f"[错误] 无法连接到 Ollama: {e}\n请检查宿主机 IP 和 OLLAMA_HOST 设置。"
+            response = requests.post(
+                self.url,
+                json=payload,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            answer = response.json().get("response")
+            if not isinstance(answer, str) or not answer.strip():
+                raise ValueError("Ollama response has no non-empty response field")
+            return answer.strip()
+        except (requests.RequestException, ValueError) as exc:
+            raise LLMUnavailableError(f"Ollama request failed: {exc}") from exc

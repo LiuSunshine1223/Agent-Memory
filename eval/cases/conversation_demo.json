@@ -1,0 +1,577 @@
+{
+  "version": "conversation-demo-1.2",
+  "description": "公开的有限对话验收集；回答关键词检查不是完整语义评分。confirm_all 模拟用户点击确认，只作用于隔离数据。",
+  "scenarios": [
+    {
+      "id": "conversation",
+      "title": "自然聊天与连续追问",
+      "steps": [
+        {
+          "user": "你是谁？",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0,
+            "answer_any": [
+              "助手",
+              "AI",
+              "DiscreteMemory"
+            ]
+          }
+        },
+        {
+          "user": "我喜欢苹果。",
+          "expect": {
+            "active_count": 0,
+            "pending": [
+              {
+                "slot": "preference.like",
+                "value": "苹果"
+              }
+            ],
+            "answer_any": [
+              "苹果"
+            ]
+          }
+        },
+        {
+          "user": "你呢？",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 1,
+            "answer_any": [
+              "味觉",
+              "偏好",
+              "口味",
+              "AI"
+            ],
+            "answer_excludes": [
+              "我是 DiscreteMemory",
+              "面向本地 LLM",
+              "我也喜欢苹果",
+              "我喜欢吃苹果"
+            ]
+          }
+        },
+        {
+          "user": "你能简单说说苹果有什么特点吗？",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 1,
+            "answer_any": [
+              "苹果"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal_lifecycle",
+      "title": "自然目标、确认、个性化回答、更新与重启",
+      "steps": [
+        {
+          "user": "最近主要在准备 NLP 方向的实习。",
+          "expect": {
+            "active_count": 0,
+            "pending": [
+              {
+                "slot": "career.goal",
+                "value": "NLP"
+              }
+            ]
+          }
+        },
+        {
+          "action": "confirm_all"
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "结合我的目标，帮我安排今天的两项准备任务？",
+          "expect": {
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP"
+              }
+            ],
+            "answer_any": [
+              "NLP",
+              "自然语言"
+            ]
+          }
+        },
+        {
+          "user": "现在更想找 RAG 方向的实习。",
+          "expect": {
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP"
+              }
+            ],
+            "pending": [
+              {
+                "slot": "career.goal",
+                "value": "RAG"
+              }
+            ]
+          }
+        },
+        {
+          "action": "confirm_all",
+          "expect": {
+            "active_count": 1,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "RAG",
+                "version": 2
+              }
+            ]
+          }
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我的求职目标是什么？",
+          "expect": {
+            "answer_any": [
+              "RAG"
+            ],
+            "answer_excludes": [
+              "NLP"
+            ]
+          }
+        },
+        {
+          "action": "restart"
+        },
+        {
+          "user": "我的目标是什么？",
+          "expect": {
+            "answer_any": [
+              "RAG"
+            ],
+            "active_count": 1
+          }
+        },
+        {
+          "action": "delete_slot",
+          "slot": "career.goal"
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我的目标是什么？",
+          "expect": {
+            "active_count": 0,
+            "answer_any": [
+              "没有",
+              "不知道",
+              "尚未",
+              "不清楚"
+            ],
+            "answer_excludes": [
+              "RAG"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "name_and_delete",
+      "title": "不同姓名表达与删除边界",
+      "steps": [
+        {
+          "user": "大家都叫我小林。",
+          "expect": {
+            "pending": [
+              {
+                "slot": "profile.name",
+                "value": "小林"
+              }
+            ],
+            "active_count": 0
+          }
+        },
+        {
+          "action": "confirm_all"
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我叫什么名字？",
+          "expect": {
+            "answer_any": [
+              "小林"
+            ]
+          }
+        },
+        {
+          "user": "如何删除我的名字记忆？",
+          "expect": {
+            "active": [
+              {
+                "slot": "profile.name",
+                "value": "小林"
+              }
+            ],
+            "answer_any": [
+              "记忆治理",
+              "删除"
+            ],
+            "answer_excludes": [
+              "不能被删除",
+              "不支持删除"
+            ]
+          }
+        },
+        {
+          "user": "如果我让你删除我的名字，会发生什么？",
+          "expect": {
+            "active": [
+              {
+                "slot": "profile.name",
+                "value": "小林"
+              }
+            ]
+          }
+        },
+        {
+          "user": "删除我的名字记忆。",
+          "expect": {
+            "active_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "preferences",
+      "title": "偏好多值与只删除指定项",
+      "steps": [
+        {
+          "user": "平时最爱吃苹果。",
+          "expect": {
+            "pending": [
+              {
+                "slot": "preference.like",
+                "value": "苹果"
+              }
+            ]
+          }
+        },
+        {
+          "action": "confirm_all"
+        },
+        {
+          "user": "香蕉也是我爱吃的。",
+          "expect": {
+            "pending": [
+              {
+                "slot": "preference.like",
+                "value": "香蕉"
+              }
+            ]
+          }
+        },
+        {
+          "action": "confirm_all"
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我喜欢什么？",
+          "expect": {
+            "active_count": 2,
+            "answer_all": [
+              "苹果",
+              "香蕉"
+            ]
+          }
+        },
+        {
+          "user": "删除我喜欢苹果的记忆。",
+          "expect": {
+            "active_count": 1,
+            "active": [
+              {
+                "slot": "preference.like",
+                "value": "香蕉"
+              }
+            ]
+          }
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我喜欢什么？",
+          "expect": {
+            "answer_any": [
+              "香蕉"
+            ],
+            "answer_excludes": [
+              "苹果"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "opt_out",
+      "title": "拒绝保存不产生候选或 active",
+      "steps": [
+        {
+          "user": "我喜欢梨，不要记下来。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0
+          }
+        },
+        {
+          "user": "我喜欢葡萄，这条就当我没说。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "non_user",
+      "title": "他人、引用、假设与虚构不作为本人事实",
+      "steps": [
+        {
+          "user": "朋友说：请记住，我叫张三。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0,
+            "answer_excludes": [
+              "你叫张三",
+              "你的名字是张三",
+              "张三，你"
+            ]
+          }
+        },
+        {
+          "user": "如果我是清华大学的学生。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0,
+            "answer_any": [
+              "如果",
+              "假设",
+              "假如"
+            ]
+          }
+        },
+        {
+          "user": "帮我编一个叫张三的人物。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0,
+            "answer_all": [
+              "张三"
+            ],
+            "answer_min_chars": 30
+          }
+        },
+        {
+          "user": "我的名字是什么？",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0,
+            "answer_excludes": [
+              "你叫张三",
+              "你的名字是张三"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "general_knowledge",
+      "title": "常识不提取为个人偏好",
+      "steps": [
+        {
+          "user": "苹果很甜。",
+          "expect": {
+            "active_count": 0,
+            "pending_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "mixed",
+      "title": "事实加问题正常回答",
+      "steps": [
+        {
+          "user": "我不太喜欢咖啡，为什么它会苦？",
+          "expect": {
+            "active_count": 0,
+            "pending": [
+              {
+                "slot": "preference.dislike",
+                "value": "咖啡"
+              }
+            ],
+            "answer_any": [
+              "咖啡因",
+              "苦味",
+              "烘焙"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "explicit_consent",
+      "title": "明确授权与重复输入去重",
+      "steps": [
+        {
+          "user": "请记住，我叫小禾。",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "profile.name",
+                "value": "小禾",
+                "version": 1
+              }
+            ]
+          }
+        },
+        {
+          "user": "请记住，我叫小禾。",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "profile.name",
+                "value": "小禾",
+                "version": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "recent_without_save",
+      "title": "本会话新目标优先，未保存不改变长期状态",
+      "steps": [
+        {
+          "user": "请记住，我的求职目标是 NLP 实习。",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ]
+          }
+        },
+        {
+          "action": "new_session"
+        },
+        {
+          "user": "我现在改投推荐算法实习了，这次先不保存。",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ]
+          }
+        },
+        {
+          "user": "按我刚才说的，我现在的求职方向是什么？",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ],
+            "answer_all": [
+              "推荐",
+              "实习"
+            ],
+            "answer_excludes": [
+              "NLP"
+            ]
+          }
+        },
+        {
+          "user": "长期记忆里已经保存的求职方向是什么？",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ],
+            "answer_any": [
+              "NLP"
+            ]
+          }
+        },
+        {
+          "action": "new_session",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ]
+          }
+        },
+        {
+          "user": "我的求职目标是什么？",
+          "expect": {
+            "active_count": 1,
+            "pending_count": 0,
+            "active": [
+              {
+                "slot": "career.goal",
+                "value": "NLP",
+                "version": 1
+              }
+            ],
+            "answer_any": [
+              "NLP"
+            ],
+            "answer_excludes": [
+              "推荐"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

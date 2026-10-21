@@ -1,81 +1,334 @@
-# 向量存储库：负责管理FAISS(C++构建)索引和文本内容的持久化存储。
+"""FAISS storage with aligned text and discrete-memory metadata."""
+
+from __future__ import annotations
+
+import copy
+import os
+import pickle
+from threading import RLock
 
 import faiss
-import os
 import numpy as np
-import pickle
+
 
 class VectorStore:
+    """Persist vectors, texts and metadata in one single-process store."""
+
+    SNAPSHOT_VERSION = 1
+
     def __init__(self, storage_path, dimension):
         self.storage_path = storage_path
-        self.dimension = int(dimension)  # 强制转为整数，防止 FAISS 报错
+        self.dimension = int(dimension)
+        self.snapshot_file = os.path.join(storage_path, "store.snapshot")
+        self._lock = RLock()
 
-        # “双轨制”存储
-        # faiss.index存储向量内容，texts.pkl存储文本块(3-5句话)内容，二者通过索引位置一一对应
-        self.index_file = os.path.join(storage_path, "faiss.index") # 向量索引的文件路径
-        self.text_file = os.path.join(storage_path, "texts.pkl") # 文本内容的文件路径
-
-        # 自动创建存储目录
-        if not os.path.exists(storage_path):
-            os.makedirs(storage_path)
-
-        # 初始化或加载现有索引
-        if os.path.exists(self.index_file):
-            print(f" 发现现有索引，正在从 {storage_path} 加载...")
-            # index和texts全部读取到cpu内存
-            self.index = faiss.read_index(self.index_file)
-            with open(self.text_file, 'rb') as f:
-                self.texts = pickle.load(f)
+        os.makedirs(storage_path, exist_ok=True)
+        if os.path.exists(self.snapshot_file):
+            self._load_snapshot()
         else:
-            print(f" 未发现现有索引，正在初始化新索引 (维度: {self.dimension})")
-            # .IndexFlatL2(self.dimension): 在内存中申请分配一块全新的、空的 C++ 结构体，里面向量维度为 self.dimension，距离度量方式为 L2（欧氏距离）。
             self.index = faiss.IndexFlatL2(self.dimension)
             self.texts = []
+            self.metadatas = []
 
-    def add_texts(self, texts, embeddings):
+    def _load_snapshot(self):
+        with open(self.snapshot_file, "rb") as source:
+            snapshot = pickle.load(source)
+        if not isinstance(snapshot, dict):
+            raise ValueError("invalid vector store snapshot")
+        if snapshot.get("version") != self.SNAPSHOT_VERSION:
+            raise ValueError(
+                f"unsupported snapshot version: {snapshot.get('version')}"
+            )
+        stored_dimension = int(snapshot.get("dimension", -1))
+        if stored_dimension != self.dimension:
+            raise ValueError(
+                f"stored index dimension {stored_dimension} "
+                f"!= configured dimension {self.dimension}"
+            )
+
+        serialized_index = np.asarray(
+            snapshot.get("index"),
+            dtype="uint8",
+        )
+        self.index = faiss.deserialize_index(serialized_index)
+        self.texts = list(snapshot.get("texts", []))
+        self.metadatas = list(snapshot.get("metadatas", []))
+        self._validate_alignment()
+
+    def add_texts(self, texts, embeddings, metadatas=None):
         if not texts:
-            return
-
-        # 将粗排序模型生成的嵌入向量列表转换为 numpy 数组，并强制类型为 float32，以满足 FAISS 的输入要求。
-        embeddings_np = np.array(embeddings).astype('float32')
-
-        # 执行入库
-        self.index.add(embeddings_np)
-        self.texts.extend(texts)
-
-        # 实时保存到硬盘（实现持久化记忆）
-        self.save()
-
-    # 粗筛召回：搜索最相似的 recall_k 条文本
-    def search(self, query_vector, recall_k, max_distance=None):
-
-        if self.index.ntotal == 0:
             return []
 
-        query_vector = np.array(query_vector).astype('float32')
-        # FAISS 搜索返回 距离(distances) 和 索引(indices)
-        # distances = 各维度差的平方和，越小代表越相似；indices = 对应文本在 self.texts 中的索引位置
-        # 按top-k的方式返回最相似的 recall_k 条文本的距离和索引
-        distances, indices = self.index.search(query_vector, recall_k)
-        results = []
-        # 因为本模型的设计初衷就是一个问题，一个回答
-        # 所以是indices[0]，而不是indices。
-        for idx, i in enumerate(indices[0]): # 如[1024, 55, 33]
-            if i != -1 and i < len(self.texts):
-                # 重要修改：如果设置了最大容忍距离，且当前切片的距离大于该值，直接拒收！
-                if max_distance is not None and distances[0][idx] > max_distance:
-                    continue # 距离太远，判定为无关废话，跳过
-                results.append(self.texts[i]) # 找第1024条文本，第55条文本，第33条文本添加到结果列表
+        texts = list(texts)
+        embeddings_np = np.asarray(embeddings, dtype="float32")
+        if embeddings_np.ndim == 1:
+            embeddings_np = embeddings_np.reshape(1, -1)
+        if embeddings_np.ndim != 2:
+            raise ValueError("embeddings must be a 1D or 2D array")
+        if len(texts) != len(embeddings_np):
+            raise ValueError("texts and embeddings must have the same length")
+        if embeddings_np.shape[1] != self.dimension:
+            raise ValueError(
+                f"embedding dimension {embeddings_np.shape[1]} != {self.dimension}"
+            )
 
-        return results
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
+        metadatas = [dict(item or {}) for item in metadatas]
+        if len(metadatas) != len(texts):
+            raise ValueError("texts and metadatas must have the same length")
+
+        with self._lock:
+            start = len(self.texts)
+            previous = (
+                faiss.deserialize_index(faiss.serialize_index(self.index)),
+                list(self.texts),
+                copy.deepcopy(self.metadatas),
+            )
+            try:
+                self.index.add(embeddings_np)
+                self.texts.extend(texts)
+                for offset, metadata in enumerate(metadatas):
+                    metadata.setdefault("status", "active")
+                    metadata.setdefault("kind", "knowledge")
+                    metadata.setdefault("slot", f"knowledge.{start + offset}")
+                    self.metadatas.append(metadata)
+                self.save()
+            except Exception:
+                self.index, self.texts, self.metadatas = previous
+                raise
+            return list(range(start, start + len(texts)))
+
+    def replace_all(self, texts, embeddings, metadatas=None):
+        """Replace the complete store and persist it as one snapshot.
+
+        Document updates and privacy-driven hard deletion need physical index
+        rebuilds because ``IndexFlatL2`` has no stable external record IDs.
+        The previous in-memory state is restored when persistence fails.
+        """
+
+        texts = list(texts)
+        embeddings_np = np.asarray(embeddings, dtype="float32")
+        if not texts:
+            embeddings_np = np.empty((0, self.dimension), dtype="float32")
+        elif embeddings_np.ndim == 1:
+            embeddings_np = embeddings_np.reshape(1, -1)
+        if embeddings_np.ndim != 2:
+            raise ValueError("embeddings must be a 1D or 2D array")
+        if len(texts) != len(embeddings_np):
+            raise ValueError("texts and embeddings must have the same length")
+        if embeddings_np.shape[1] != self.dimension:
+            raise ValueError(
+                f"embedding dimension {embeddings_np.shape[1]} != {self.dimension}"
+            )
+
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
+        metadatas = [dict(item or {}) for item in metadatas]
+        if len(metadatas) != len(texts):
+            raise ValueError("texts and metadatas must have the same length")
+        for record_id, metadata in enumerate(metadatas):
+            metadata.setdefault("status", "active")
+            metadata.setdefault("kind", "knowledge")
+            metadata.setdefault("slot", f"knowledge.{record_id}")
+
+        replacement = faiss.IndexFlatL2(self.dimension)
+        if len(embeddings_np):
+            replacement.add(embeddings_np)
+
+        with self._lock:
+            previous = (self.index, self.texts, self.metadatas)
+            self.index = replacement
+            self.texts = texts
+            self.metadatas = metadatas
+            try:
+                self.save()
+            except Exception:
+                self.index, self.texts, self.metadatas = previous
+                raise
+
+    def purge_records(self, filters):
+        """Physically remove matching records and rebuild the flat index."""
+
+        if not filters:
+            raise ValueError("purge_records requires at least one filter")
+        with self._lock:
+            removed_ids = [
+                record_id
+                for record_id, metadata in enumerate(self.metadatas)
+                if self._matches(metadata, filters)
+            ]
+            if not removed_ids:
+                return 0
+
+            removed = set(removed_ids)
+            retained_ids = [
+                record_id
+                for record_id in range(len(self.texts))
+                if record_id not in removed
+            ]
+            texts = [self.texts[record_id] for record_id in retained_ids]
+            metadatas = [
+                copy.deepcopy(self.metadatas[record_id])
+                for record_id in retained_ids
+            ]
+            embeddings = (
+                np.asarray(
+                    [self.index.reconstruct(record_id) for record_id in retained_ids],
+                    dtype="float32",
+                )
+                if retained_ids
+                else np.empty((0, self.dimension), dtype="float32")
+            )
+            self.replace_all(texts, embeddings, metadatas)
+            return len(removed_ids)
+
+    def search(self, query_vector, recall_k, max_distance=None):
+        return [
+            item["text"]
+            for item in self.search_records(
+                query_vector,
+                recall_k=recall_k,
+                max_distance=max_distance,
+            )
+        ]
+
+    def search_records(
+        self,
+        query_vector,
+        recall_k,
+        max_distance=None,
+        filters=None,
+    ):
+        if recall_k <= 0:
+            return []
+
+        query_np = np.asarray(query_vector, dtype="float32")
+        if query_np.ndim == 1:
+            query_np = query_np.reshape(1, -1)
+        if query_np.ndim != 2 or query_np.shape[0] != 1:
+            raise ValueError("query_vector must contain exactly one vector")
+        if query_np.shape[1] != self.dimension:
+            raise ValueError(
+                f"query dimension {query_np.shape[1]} != {self.dimension}"
+            )
+
+        with self._lock:
+            if self.index.ntotal == 0:
+                return []
+            search_k = self.index.ntotal if filters else min(
+                int(recall_k), self.index.ntotal
+            )
+            distances, indices = self.index.search(query_np, search_k)
+            results = []
+            for position, record_id in enumerate(indices[0]):
+                if record_id == -1 or record_id >= len(self.texts):
+                    continue
+                distance = float(distances[0][position])
+                if max_distance is not None and distance > max_distance:
+                    continue
+                metadata = self.metadatas[record_id]
+                if not self._matches(metadata, filters):
+                    continue
+                results.append(
+                    {
+                        "record_id": int(record_id),
+                        "text": self.texts[record_id],
+                        "metadata": copy.deepcopy(metadata),
+                        "distance": distance,
+                    }
+                )
+                if len(results) >= recall_k:
+                    break
+            return results
+
+    def list_records(self, filters=None):
+        with self._lock:
+            return [
+                {
+                    "record_id": record_id,
+                    "text": text,
+                    "metadata": copy.deepcopy(metadata),
+                }
+                for record_id, (text, metadata) in enumerate(
+                    zip(self.texts, self.metadatas)
+                )
+                if self._matches(metadata, filters)
+            ]
+
+    def update_metadata(self, record_id, updates, persist=True):
+        with self._lock:
+            if record_id < 0 or record_id >= len(self.metadatas):
+                raise IndexError(f"invalid record_id: {record_id}")
+            previous = copy.deepcopy(self.metadatas[record_id])
+            try:
+                self.metadatas[record_id].update(dict(updates))
+                if persist:
+                    self.save()
+            except Exception:
+                self.metadatas[record_id] = previous
+                raise
+
+    def update_metadatas(self, updates_by_id):
+        with self._lock:
+            previous = copy.deepcopy(self.metadatas)
+            for record_id, updates in updates_by_id.items():
+                if record_id < 0 or record_id >= len(self.metadatas):
+                    raise IndexError(f"invalid record_id: {record_id}")
+            try:
+                for record_id, updates in updates_by_id.items():
+                    self.metadatas[record_id].update(dict(updates))
+                if updates_by_id:
+                    self.save()
+            except Exception:
+                self.metadatas = previous
+                raise
 
     def save(self):
-        # 将self.index对象保存到self.index_file路径下(D:\data\faiss.index)
-        faiss.write_index(self.index, self.index_file)
-        # 将文本存在self.text_file路径下(D:\data\texts.pkl)，使用pickle序列化
-        with open(self.text_file, 'wb') as f:
-            pickle.dump(self.texts, f)
+        with self._lock:
+            snapshot = {
+                "version": self.SNAPSHOT_VERSION,
+                "dimension": self.dimension,
+                "index": faiss.serialize_index(self.index),
+                "texts": self.texts,
+                "metadatas": self.metadatas,
+            }
+            self._atomic_pickle(self.snapshot_file, snapshot)
 
-    @property # 只读（Read-only），显示记忆容量
+    @property
     def total_count(self):
         return self.index.ntotal
+
+    def _validate_alignment(self):
+        if self.index.d != self.dimension:
+            raise ValueError(
+                f"stored index dimension {self.index.d} "
+                f"!= configured dimension {self.dimension}"
+            )
+        if self.index.ntotal != len(self.texts):
+            raise ValueError(
+                "snapshot vector count and text count are inconsistent"
+            )
+        if len(self.metadatas) != len(self.texts):
+            raise ValueError(
+                "snapshot metadata count and text count are inconsistent"
+            )
+
+    @staticmethod
+    def _matches(metadata, filters):
+        if not filters:
+            return True
+        return all(metadata.get(key) == value for key, value in filters.items())
+
+    @staticmethod
+    def _atomic_pickle(path, value):
+        temp_file = path + ".tmp"
+        try:
+            with open(temp_file, "wb") as target:
+                pickle.dump(value, target)
+                target.flush()
+                os.fsync(target.fileno())
+            os.replace(temp_file, path)
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)

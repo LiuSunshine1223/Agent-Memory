@@ -1,0 +1,1886 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>DiscreteMemory · 求职与科研长期记忆助手</title>
+  <style>
+    :root {
+      --bg: #f3f5f7;
+      --surface: #ffffff;
+      --surface-soft: #f7f9fb;
+      --ink: #16202a;
+      --muted: #66727f;
+      --line: #dce2e7;
+      --primary: #285a78;
+      --primary-dark: #1d465f;
+      --primary-soft: #e8f1f6;
+      --success: #267158;
+      --success-soft: #e7f4ee;
+      --warning: #9a641c;
+      --warning-soft: #fbf1df;
+      --danger: #ad3c3c;
+      --danger-soft: #faeaea;
+      --shadow: 0 12px 34px rgba(22, 32, 42, 0.08);
+      --radius: 16px;
+      --radius-sm: 10px;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible,
+    select:focus-visible, summary:focus-visible {
+      outline: 3px solid rgba(40, 90, 120, 0.2);
+      outline-offset: 2px;
+    }
+
+    .topbar {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 0 28px;
+      color: #fff;
+      background: #183b50;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.1);
+      font-weight: 750;
+      letter-spacing: -0.04em;
+    }
+    .brand-copy { min-width: 0; }
+    .brand-copy strong { display: block; font-size: 16px; letter-spacing: 0.01em; }
+    .brand-copy span {
+      display: block;
+      margin-top: 2px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .connection {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 12px;
+    }
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #e3b259;
+      box-shadow: 0 0 0 4px rgba(227, 178, 89, 0.12);
+    }
+    .connection.is-online .connection-dot { background: #74caa8; }
+    .connection.is-offline .connection-dot { background: #ef8585; }
+
+    .error-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 16px 24px 0;
+      padding: 13px 15px;
+      color: #762c2c;
+      background: var(--danger-soft);
+      border: 1px solid #ecc7c7;
+      border-radius: var(--radius-sm);
+    }
+    .error-banner strong { display: block; margin-bottom: 2px; }
+    .error-banner p { margin: 0; font-size: 13px; line-height: 1.55; }
+    .error-banner button {
+      margin-left: auto;
+      padding: 2px 5px;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      font-size: 18px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+      max-width: 1580px;
+      min-height: calc(100vh - 68px);
+      margin: 0 auto;
+    }
+    .sidebar {
+      padding: 24px 16px;
+      background: #ecf0f3;
+      border-right: 1px solid var(--line);
+    }
+    .nav-label {
+      margin: 0 10px 10px;
+      color: #78838d;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+    .nav-list { display: grid; gap: 7px; }
+    .nav-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 11px 12px;
+      color: #45525e;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .nav-button:hover { background: rgba(255, 255, 255, 0.72); }
+    .nav-button.is-active {
+      color: var(--primary-dark);
+      background: var(--surface);
+      border-color: #d8e1e7;
+      box-shadow: 0 4px 14px rgba(29, 70, 95, 0.07);
+      font-weight: 650;
+    }
+    .nav-index {
+      width: 25px;
+      height: 25px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: var(--primary);
+      background: var(--primary-soft);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .scope-card {
+      margin-top: 28px;
+      padding: 14px;
+      color: #4f5c67;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid #dce3e8;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .scope-card strong { display: block; margin-bottom: 5px; color: #283743; }
+
+    main { min-width: 0; padding: 28px 32px 44px; }
+    .view { max-width: 1240px; margin: 0 auto; }
+    .view-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(23px, 3vw, 31px); letter-spacing: -0.025em; }
+    .view-heading p:last-child {
+      max-width: 720px;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 17px 19px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-header h2, .panel-header h3 { margin: 0; font-size: 15px; }
+    .panel-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .panel-body { padding: 20px; }
+
+    .button {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 8px 14px;
+      color: #fff;
+      background: var(--primary);
+      border: 1px solid var(--primary);
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .button:hover:not(:disabled) { background: var(--primary-dark); }
+    .button.secondary {
+      color: #3f4e59;
+      background: var(--surface);
+      border-color: #cfd8de;
+    }
+    .button.secondary:hover:not(:disabled) { background: var(--surface-soft); }
+    .button.danger { color: var(--danger); background: #fff; border-color: #e2bcbc; }
+    .button.danger:hover:not(:disabled) { background: var(--danger-soft); }
+    .button.ghost { color: var(--primary); background: transparent; border-color: transparent; }
+    .button.small { min-height: 32px; padding: 5px 10px; font-size: 12px; }
+    .icon-button {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      color: #53616c;
+      background: #fff;
+      border: 1px solid #d7dfe4;
+      border-radius: 9px;
+    }
+
+    .field { display: grid; gap: 7px; }
+    .field label, .field > span {
+      color: #394752;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .field small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .input, .textarea, .select {
+      width: 100%;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid #cfd8de;
+      border-radius: 9px;
+    }
+    .input, .select { min-height: 40px; padding: 8px 11px; }
+    .textarea { min-height: 96px; padding: 10px 11px; line-height: 1.55; resize: vertical; }
+    .input::placeholder, .textarea::placeholder { color: #9aa4ad; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+    .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+    .full-span { grid-column: 1 / -1; }
+
+    /* Chat */
+    .chat-layout {
+      min-height: 650px;
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr);
+      overflow: hidden;
+    }
+    .session-rail { background: #f7f9fa; border-right: 1px solid var(--line); }
+    .session-rail-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px;
+      border-bottom: 1px solid var(--line);
+    }
+    .session-rail-head strong { font-size: 13px; }
+    .session-list { display: grid; gap: 5px; padding: 10px; }
+    .session-item {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      color: #33424d;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 10px;
+    }
+    .session-item:hover { background: #fff; }
+    .session-item.is-active { background: var(--primary-soft); border-color: #ccdee8; }
+    .session-select { min-width: 0; flex: 1; display: grid; gap: 5px; padding: 11px; color: inherit; text-align: left; background: transparent; border: 0; border-radius: 9px; }
+    .session-delete { flex: none; margin-right: 7px; padding: 7px 5px; color: #a13a35; background: transparent; border: 0; border-radius: 6px; font-size: 12px; }
+    .session-delete:hover { background: #fff0ee; }
+    .session-select:focus-visible, .session-delete:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+    .session-item strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .session-item span { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+    #deleteSessionError { margin: 0; color: var(--danger); font-size: 13px; overflow-wrap: anywhere; }
+    .chat-stage { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; }
+    .chat-head { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .chat-head strong { display: block; font-size: 14px; }
+    .chat-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .message-list {
+      min-height: 0;
+      max-height: 540px;
+      overflow-y: auto;
+      padding: 22px;
+      background: #fcfdfd;
+    }
+    .message {
+      max-width: min(78%, 760px);
+      margin-bottom: 15px;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px 13px 13px 4px;
+      background: #fff;
+    }
+    .message.user {
+      margin-left: auto;
+      color: #fff;
+      background: var(--primary);
+      border-color: var(--primary);
+      border-radius: 13px 13px 4px 13px;
+    }
+    .message-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 10px; opacity: 0.7; }
+    .message-content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; }
+    .message details { margin-top: 9px; padding-top: 8px; border-top: 1px solid #e6ebee; }
+    .message.user details { border-color: rgba(255, 255, 255, 0.24); }
+    .message summary { cursor: pointer; font-size: 11px; }
+    .trace-code {
+      max-height: 230px;
+      overflow: auto;
+      margin: 8px 0 0;
+      padding: 10px;
+      color: #dcebf3;
+      background: #172a36;
+      border-radius: 8px;
+      font: 11px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .composer { padding: 14px 18px 17px; background: #fff; border-top: 1px solid var(--line); }
+    .composer-row { display: flex; align-items: flex-end; gap: 10px; }
+    .composer textarea { min-height: 46px; max-height: 150px; }
+    .composer-note { margin: 7px 2px 0; color: var(--muted); font-size: 10px; }
+
+    /* Memory */
+    .memory-top-grid { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.4fr); gap: 18px; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .stat { padding: 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 11px; }
+    .stat strong { display: block; font-size: 21px; }
+    .stat span { color: var(--muted); font-size: 11px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 19px 0 12px; }
+    .segmented { display: inline-flex; padding: 3px; background: #e8edf0; border-radius: 9px; }
+    .segmented button { padding: 6px 11px; color: #5b6873; background: transparent; border: 0; border-radius: 7px; font-size: 12px; }
+    .segmented button.is-active { color: #213846; background: #fff; box-shadow: 0 2px 7px rgba(22, 32, 42, 0.08); font-weight: 650; }
+    .memory-list { display: grid; gap: 10px; }
+    .memory-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; padding: 16px 17px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .memory-card.is-deleted { background: #fafafa; opacity: 0.82; }
+    .memory-card.is-candidate { background: #fffdf8; border-color: #e7d3ab; }
+    .memory-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .memory-title strong { font: 650 13px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .memory-value { margin: 9px 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
+    .memory-meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 11px; }
+    .card-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 7px; }
+    .edit-form { display: grid; grid-column: 1 / -1; gap: 9px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .candidate-panel { margin-top: 18px; }
+    .candidate-list { padding: 15px 17px 17px; }
+    .candidate-list .empty-state { min-height: 105px; }
+    .governance-details { margin-top: 10px; color: var(--muted); font-size: 11px; }
+    .governance-details summary { cursor: pointer; color: var(--primary); }
+    .memory-history { display: grid; grid-column: 1 / -1; gap: 10px; padding-top: 13px; border-top: 1px solid var(--line); }
+    .memory-history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .memory-history-head h3 { margin: 0; font-size: 13px; }
+    .memory-history-head span, .memory-history-status { color: var(--muted); font-size: 11px; }
+    .history-list { display: grid; gap: 8px; }
+    .history-entry { padding: 11px 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 9px; }
+    .history-entry-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .history-entry-head strong { font-size: 12px; }
+    .history-entry time { margin-left: auto; color: var(--muted); font-size: 10px; }
+    .history-entry .memory-value { margin: 7px 0 5px; font-size: 12px; }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .badge.active { color: var(--success); background: var(--success-soft); }
+    .badge.deleted { color: var(--danger); background: var(--danger-soft); }
+    .badge.pending { color: var(--warning); background: var(--warning-soft); }
+    .badge.high { color: var(--danger); background: var(--danger-soft); }
+    .badge.medium { color: var(--warning); background: var(--warning-soft); }
+    .badge.low { color: var(--success); background: var(--success-soft); }
+    .badge.neutral { color: #52616d; background: #edf1f3; }
+
+    /* Documents and job fit */
+    .document-grid { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.3fr); gap: 18px; }
+    .document-list { display: grid; gap: 10px; }
+    .document-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 15px; border: 1px solid var(--line); border-radius: 11px; }
+    .document-card h3 { margin: 0 0 5px; font-size: 14px; }
+    .document-card p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+    .job-layout { display: grid; grid-template-columns: minmax(330px, 0.82fr) minmax(0, 1.18fr); gap: 18px; align-items: start; }
+    .source-picker { display: grid; gap: 7px; max-height: 220px; overflow-y: auto; padding: 9px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
+    .source-option { display: flex; align-items: flex-start; gap: 9px; padding: 8px; background: #fff; border: 1px solid #e2e7ea; border-radius: 8px; }
+    .source-option input { margin-top: 2px; accent-color: var(--primary); }
+    .source-option strong { display: block; font-size: 12px; }
+    .source-option span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .result-stack { display: grid; gap: 14px; }
+    .result-section { padding: 15px; border: 1px solid var(--line); border-radius: 11px; }
+    .result-section h3 { margin: 0 0 11px; font-size: 14px; }
+    .result-item { padding: 11px 0; border-top: 1px solid #e8ecef; }
+    .result-item:first-of-type { padding-top: 0; border-top: 0; }
+    .result-item:last-child { padding-bottom: 0; }
+    .result-item strong { display: block; font-size: 13px; }
+    .result-item p { margin: 5px 0 0; color: #53616c; font-size: 12px; line-height: 1.6; }
+    .result-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .quote { padding-left: 10px; border-left: 3px solid #c8dbe6; color: #45535e; }
+
+    .empty-state { display: grid; place-items: center; min-height: 150px; padding: 24px; color: var(--muted); text-align: center; }
+    .empty-state strong { display: block; margin-bottom: 5px; color: #3e4d58; font-size: 14px; }
+    .empty-state p { max-width: 450px; margin: 0; font-size: 12px; line-height: 1.6; }
+
+    dialog { width: min(460px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: #fff; border: 0; border-radius: 15px; box-shadow: 0 24px 70px rgba(16, 29, 38, 0.28); }
+    dialog::backdrop { background: rgba(14, 27, 36, 0.48); }
+    .dialog-head { padding: 19px 20px 12px; }
+    .dialog-head h2 { margin: 0; font-size: 18px; }
+    .dialog-head p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .dialog-body { display: grid; gap: 14px; padding: 8px 20px 20px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 14px 20px; background: #f7f9fa; border-top: 1px solid var(--line); }
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 20;
+      max-width: min(390px, calc(100vw - 32px));
+      padding: 12px 15px;
+      color: #fff;
+      background: #243d4d;
+      border-radius: 10px;
+      box-shadow: 0 12px 34px rgba(16, 29, 38, 0.25);
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 82px minmax(0, 1fr); }
+      .sidebar { padding: 20px 10px; }
+      .nav-label, .nav-button > span:not(.nav-index), .scope-card { display: none; }
+      .nav-button { justify-content: center; padding: 10px; }
+      main { padding: 24px 22px 38px; }
+      .chat-layout { grid-template-columns: 220px minmax(0, 1fr); }
+      .memory-top-grid, .document-grid, .job-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 700px) {
+      .topbar { height: 62px; padding: 0 16px; }
+      .brand-copy span, .connection span { display: none; }
+      .shell { display: block; min-height: calc(100vh - 62px); }
+      .sidebar { position: sticky; top: 0; z-index: 8; padding: 8px 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .nav-list { display: flex; min-width: max-content; }
+      .nav-button { width: auto; gap: 7px; padding: 7px 10px; }
+      .nav-button > span:not(.nav-index) { display: inline; font-size: 12px; }
+      .nav-index { width: 22px; height: 22px; }
+      main { padding: 20px 14px 34px; }
+      .error-banner { margin: 12px 12px 0; }
+      .view-heading { align-items: flex-start; flex-direction: column; }
+      .chat-layout { min-height: 620px; display: block; }
+      .session-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+      .session-list { display: flex; overflow-x: auto; }
+      .session-item { min-width: 180px; }
+      .chat-stage { min-height: 500px; }
+      .message-list { max-height: 430px; padding: 16px 12px; }
+      .message { max-width: 91%; }
+      .composer { padding: 12px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .full-span { grid-column: auto; }
+      .memory-card { grid-template-columns: 1fr; }
+      .card-actions { justify-content: flex-start; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .panel-header, .panel-body { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">DM</div>
+      <div class="brand-copy">
+        <strong>DiscreteMemory</strong>
+        <span>可治理的本地长期记忆系统</span>
+      </div>
+    </div>
+    <div id="connection" class="connection" aria-live="polite">
+      <span class="connection-dot"></span>
+      <span id="connectionText">正在连接本地服务</span>
+    </div>
+  </header>
+
+  <div id="errorBanner" class="error-banner" role="alert" hidden>
+    <div>
+      <strong id="errorTitle">请求失败</strong>
+      <p id="errorMessage"></p>
+    </div>
+    <button id="closeError" type="button" aria-label="关闭错误提示">×</button>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar" aria-label="产品功能导航">
+      <p class="nav-label">工作空间</p>
+      <nav class="nav-list">
+        <button class="nav-button is-active" type="button" data-view="chat" aria-current="page">
+          <span class="nav-index">01</span><span>对话</span>
+        </button>
+        <button class="nav-button" type="button" data-view="memories">
+          <span class="nav-index">02</span><span>记忆治理</span>
+        </button>
+        <button class="nav-button" type="button" data-view="documents">
+          <span class="nav-index">03</span><span>知识源（RAG）</span>
+        </button>
+        <button class="nav-button" type="button" data-view="job-fit">
+          <span class="nav-index">04</span><span>示例：证据化岗位匹配</span>
+        </button>
+      </nav>
+      <div class="scope-card">
+        <strong>核心主线</strong>
+        候选准入、版本记忆、召回与删除。模型不能绕过治理接口直接写删记忆。
+      </div>
+    </aside>
+
+    <main>
+      <section id="view-chat" class="view" data-view-panel="chat">
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">Conversation</p>
+            <h1>连续对话</h1>
+            <p>按会话恢复短期上下文；长期事实由记忆治理层独立保存。</p>
+          </div>
+        </div>
+        <div class="panel chat-layout">
+          <aside class="session-rail" aria-label="会话列表">
+            <div class="session-rail-head">
+              <strong>会话</strong>
+              <button id="newSessionButton" class="icon-button" type="button" title="新建会话" aria-label="新建会话">＋</button>
+            </div>
+            <div id="sessionList" class="session-list"></div>
+          </aside>
+          <div class="chat-stage">
+            <div class="chat-head">
+              <strong id="activeSessionTitle">尚未选择会话</strong>
+              <span id="activeSessionMeta">新建或选择一个会话后开始</span>
+            </div>
+            <div id="messageList" class="message-list" aria-live="polite"></div>
+            <form id="chatForm" class="composer">
+              <div class="composer-row">
+                <textarea id="chatInput" class="textarea" rows="1" maxlength="8000" placeholder="输入问题，或明确告诉我需要记住/忘记的信息……" aria-label="聊天内容" required></textarea>
+                <button id="sendButton" class="button" type="submit" disabled>发送</button>
+              </div>
+              <p class="composer-note">Ctrl/⌘ + Enter 发送 · 记忆写入与删除均经过确定性安全路由</p>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-memories" class="view" data-view-panel="memories" hidden>
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">Memory Governance</p>
+            <h1>记忆治理</h1>
+            <p>查看来源与版本，主动修正、逻辑删除或彻底清除自己的长期记忆。</p>
+          </div>
+          <div class="heading-actions">
+            <button id="refreshMemories" class="button secondary" type="button">刷新</button>
+          </div>
+        </div>
+        <section class="panel">
+          <div class="panel-header"><div><h2>状态概览</h2><p>请在对话中提供事实；普通事实先进入候选，明确“请记住”才会直接保存。</p></div></div>
+          <div class="panel-body">
+            <div class="stats">
+              <div class="stat"><strong id="activeMemoryCount">0</strong><span>有效记忆</span></div>
+              <div class="stat"><strong id="deletedMemoryCount">0</strong><span>已逻辑删除</span></div>
+              <div class="stat"><strong id="memorySlotCount">0</strong><span>不同槽位</span></div>
+            </div>
+            <div class="empty-state" style="min-height:115px;padding-bottom:0">
+              <div><strong>删除只作用于长期记忆</strong><p>逻辑删除后不再从长期记忆库召回，但保留审计记录。原始聊天消息仍保留，可能作为近期对话上下文；资料中的相同信息也不会被删除。</p></div>
+            </div>
+          </div>
+        </section>
+        <section class="panel candidate-panel" aria-labelledby="candidateHeading">
+          <div class="panel-header">
+            <div><h2 id="candidateHeading">待确认记忆</h2><p>聊天提取结果只有经你确认后，才会进入有效长期记忆。</p></div>
+            <span id="memoryCandidateCount" class="badge pending">0 条</span>
+          </div>
+          <div id="memoryCandidateList" class="candidate-list memory-list" aria-live="polite"></div>
+        </section>
+        <div class="toolbar">
+          <div class="segmented" aria-label="记忆状态筛选">
+            <button type="button" data-memory-filter="all" class="is-active">全部</button>
+            <button type="button" data-memory-filter="active">有效</button>
+            <button type="button" data-memory-filter="deleted">已删除</button>
+          </div>
+          <span id="memoryListMeta" style="color:var(--muted);font-size:12px"></span>
+        </div>
+        <div id="memoryList" class="memory-list"></div>
+      </section>
+
+      <section id="view-documents" class="view" data-view-panel="documents" hidden>
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">Knowledge Workspace</p>
+            <h1>知识源（RAG）</h1>
+            <p>导入本机 TXT/Markdown 文件，支持去重、更新、删除和来源追踪。</p>
+          </div>
+          <button id="refreshDocuments" class="button secondary" type="button">刷新</button>
+        </div>
+        <div class="document-grid">
+          <section class="panel">
+            <div class="panel-header"><div><h2>导入本地资料</h2><p>浏览器读取文本后交给本地 API，不依赖 Windows/WSL 路径映射</p></div></div>
+            <form id="documentForm" class="panel-body form-grid">
+              <div class="field full-span">
+                <label for="documentFile">TXT/Markdown 文件</label>
+                <input id="documentFile" class="input" name="file" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" required>
+                <small>单文件最多 2 MB；原文件不会被修改。</small>
+              </div>
+              <div class="field">
+                <label for="documentSource">来源标识（可选）</label>
+                <input id="documentSource" class="input" name="source_id" placeholder="resume">
+              </div>
+              <div class="field">
+                <label for="documentTitle">显示标题（可选）</label>
+                <input id="documentTitle" class="input" name="title" placeholder="个人简历">
+              </div>
+              <div class="form-actions full-span">
+                <button class="button" type="submit">导入并建立索引</button>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>已导入资料</h2><p id="documentCount">0 份资料</p></div></div>
+            <div id="documentList" class="panel-body document-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="view-job-fit" class="view" data-view-panel="job-fit" hidden>
+        <div class="view-heading">
+          <div>
+            <p class="eyebrow">Job Fit Workflow</p>
+            <h1>证据化岗位匹配</h1>
+            <p>这是一个下游示例：结合所选资料和有效长期记忆，输出可核验的匹配项、缺口与准备计划。</p>
+          </div>
+        </div>
+        <div class="job-layout">
+          <section class="panel">
+            <div class="panel-header"><div><h2>分析输入</h2><p>每次只执行一次有边界的分析，不自动写入记忆</p></div></div>
+            <form id="jobFitForm" class="panel-body" style="display:grid;gap:15px">
+              <div class="field">
+                <label for="jdText">岗位 JD</label>
+                <textarea id="jdText" class="textarea" style="min-height:230px" maxlength="30000" placeholder="粘贴岗位职责、任职要求和加分项……" required></textarea>
+              </div>
+              <div class="field">
+                <span>参与分析的资料</span>
+                <div id="jobDocumentList" class="source-picker"></div>
+                <small>不选择时由后端使用默认资料范围；长期记忆仅作为只读证据。</small>
+              </div>
+              <div class="form-actions">
+                <button id="jobFitButton" class="button" type="submit">开始岗位匹配</button>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h2>分析结果</h2><p>证据必须来自已导入资料或有效记忆</p></div></div>
+            <div id="jobFitResult" class="panel-body"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="sessionDialog">
+    <form id="sessionForm" method="dialog">
+      <div class="dialog-head"><h2>新建会话</h2><p>不同会话拥有独立的短期上下文，长期记忆仍由当前工作空间共享。</p></div>
+      <div class="dialog-body field"><label for="sessionTitle">会话标题</label><input id="sessionTitle" class="input" maxlength="120" placeholder="例如：Agent 实习准备"></div>
+      <div class="dialog-actions"><button class="button secondary" type="button" data-close-dialog="sessionDialog">取消</button><button class="button" type="submit">创建</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="purgeDialog">
+    <form id="purgeForm" method="dialog">
+      <div class="dialog-head"><h2>彻底删除记忆</h2><p>这会删除该记忆的全部版本、关联候选和向量记录，无法撤销；原始聊天消息和资料仍保留。目标：<strong id="purgeTarget"></strong></p></div>
+      <div class="dialog-body field"><label for="purgeConfirm">请输入“彻底删除”进行确认</label><input id="purgeConfirm" class="input" autocomplete="off" required></div>
+      <div class="dialog-actions"><button class="button secondary" type="button" data-close-dialog="purgeDialog">取消</button><button id="purgeButton" class="button danger" type="submit" disabled>永久清除</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="deleteSessionDialog" aria-labelledby="deleteSessionHeading" aria-describedby="deleteSessionDescription">
+    <form id="deleteSessionForm" method="dialog">
+      <div class="dialog-head"><h2 id="deleteSessionHeading">删除会话</h2><p id="deleteSessionDescription">删除“<strong id="deleteSessionTarget"></strong>”及其全部聊天消息？此操作无法撤销。已保存的长期记忆和待确认候选仍保留，可在记忆页面单独管理。</p></div>
+      <div class="dialog-body"><p id="deleteSessionError" role="alert" hidden></p></div>
+      <div class="dialog-actions"><button id="cancelDeleteSession" class="button secondary" type="button" data-close-dialog="deleteSessionDialog" autofocus>取消</button><button id="confirmDeleteSession" class="button danger" type="submit">删除会话</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+    "use strict";
+
+    const state = {
+      sessions: [],
+      activeSessionId: null,
+      sessionsRequestVersion: 0,
+      messagesRequestVersion: 0,
+      messagesLoading: false,
+      chatBusy: false,
+      deleteSessionId: null,
+      deletingSession: false,
+      messages: [],
+      memories: [],
+      memoryCandidates: [],
+      memoryCandidatesLoading: false,
+      memoryCandidatesError: null,
+      memoryCandidatesRequestVersion: 0,
+      candidateActionIds: new Set(),
+      memoryFilter: "all",
+      editingMemoryId: null,
+      memoryHistories: new Map(),
+      memoryHistoryErrors: new Map(),
+      openMemoryHistoryIds: new Set(),
+      loadingMemoryHistoryIds: new Set(),
+      memoryHistoryEpoch: 0,
+      storedMemoriesRequestVersion: 0,
+      documents: [],
+      selectedDocumentIds: new Set(),
+      purgeMemoryId: null,
+    };
+
+    const byId = (id) => document.getElementById(id);
+    const errorBanner = byId("errorBanner");
+    let toastTimer = null;
+
+    function setConnection(status) {
+      const node = byId("connection");
+      node.classList.toggle("is-online", status === "online");
+      node.classList.toggle("is-offline", status === "offline");
+      byId("connectionText").textContent = status === "online"
+        ? "本地 API 已连接"
+        : status === "offline"
+          ? "本地 API 不可用"
+          : "正在连接本地服务";
+    }
+
+    function describeError(error) {
+      if (!error) return "未知错误";
+      const prefix = error.status ? `HTTP ${error.status} · ` : "";
+      return prefix + (error.message || String(error));
+    }
+
+    function showError(error, title = "请求失败") {
+      byId("errorTitle").textContent = title;
+      byId("errorMessage").textContent = describeError(error);
+      errorBanner.hidden = false;
+    }
+
+    function clearError() { errorBanner.hidden = true; }
+
+    function notify(message) {
+      const toast = byId("toast");
+      toast.textContent = message;
+      toast.hidden = false;
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
+    }
+
+    async function api(path, options = {}) {
+      const request = { method: options.method || "GET", headers: { Accept: "application/json" } };
+      if (options.body !== undefined) {
+        request.headers["Content-Type"] = "application/json";
+        request.body = JSON.stringify(options.body);
+      }
+      try {
+        const response = await fetch(path, request);
+        setConnection("online");
+        const text = await response.text();
+        let payload = null;
+        if (text) {
+          try { payload = JSON.parse(text); }
+          catch { payload = { detail: text }; }
+        }
+        if (!response.ok) {
+          const detail = payload?.detail ?? payload?.error?.message ?? payload?.message ?? response.statusText;
+          const error = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+          error.status = response.status;
+          error.payload = payload;
+          throw error;
+        }
+        return payload;
+      } catch (error) {
+        if (!error.status) setConnection("offline");
+        throw error;
+      }
+    }
+
+    function unwrap(payload) { return payload?.data ?? payload ?? {}; }
+
+    function listFrom(payload, keys) {
+      const value = unwrap(payload);
+      if (Array.isArray(value)) return value;
+      for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
+      return [];
+    }
+
+    function formatTime(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("zh-CN", {
+        month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+      }).format(date);
+    }
+
+    function displayValue(value) {
+      if (typeof value === "string") return value;
+      if (value === null || value === undefined) return "";
+      try { return JSON.stringify(value, null, 2) ?? String(value); }
+      catch { return String(value); }
+    }
+
+    function emptyNode(title, detail) {
+      const root = document.createElement("div");
+      root.className = "empty-state";
+      const inner = document.createElement("div");
+      const strong = document.createElement("strong");
+      const p = document.createElement("p");
+      strong.textContent = title;
+      p.textContent = detail;
+      inner.append(strong, p);
+      root.append(inner);
+      return root;
+    }
+
+    function traceDetails(trace) {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      const pre = document.createElement("pre");
+      summary.textContent = "查看执行 trace";
+      pre.className = "trace-code";
+      pre.textContent = JSON.stringify(trace, null, 2);
+      details.append(summary, pre);
+      return details;
+    }
+
+    function setView(name) {
+      document.querySelectorAll("[data-view-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.viewPanel !== name;
+      });
+      document.querySelectorAll("[data-view]").forEach((button) => {
+        const active = button.dataset.view === name;
+        button.classList.toggle("is-active", active);
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      if (name === "memories") loadMemories();
+      if (name === "documents" || name === "job-fit") loadDocuments();
+    }
+
+    async function loadSessions(preferredId = null) {
+      const requestVersion = ++state.sessionsRequestVersion;
+      try {
+        const payload = await api("/v1/sessions");
+        if (requestVersion !== state.sessionsRequestVersion) return;
+        state.sessions = listFrom(payload, ["sessions", "items"]);
+        const candidate = [preferredId, state.activeSessionId, state.sessions[0]?.session_id]
+          .find((id) => state.sessions.some((item) => item.session_id === id));
+        await selectSession(candidate || null);
+      } catch (error) {
+        if (requestVersion === state.sessionsRequestVersion) showError(error, "无法加载会话");
+      }
+    }
+
+    function renderSessions() {
+      const list = byId("sessionList");
+      list.replaceChildren();
+      const busy = state.chatBusy || state.deletingSession;
+      byId("newSessionButton").disabled = busy;
+      if (!state.sessions.length) {
+        list.append(emptyNode("还没有会话", "点击上方加号创建第一个会话。"));
+        return;
+      }
+      for (const session of state.sessions) {
+        const row = document.createElement("div");
+        const button = document.createElement("button");
+        const remove = document.createElement("button");
+        const title = document.createElement("strong");
+        const meta = document.createElement("span");
+        button.type = "button";
+        row.className = "session-item";
+        row.classList.toggle("is-active", session.session_id === state.activeSessionId);
+        button.className = "session-select";
+        button.disabled = busy;
+        button.dataset.sessionId = session.session_id;
+        button.setAttribute("aria-pressed", String(session.session_id === state.activeSessionId));
+        title.textContent = session.title || "未命名会话";
+        meta.textContent = `${session.message_count || 0} 条消息 · ${formatTime(session.updated_at) || "刚刚"}`;
+        button.append(title, meta);
+        remove.type = "button";
+        remove.className = "session-delete";
+        remove.textContent = "删除";
+        remove.dataset.deleteSessionId = session.session_id;
+        remove.setAttribute("aria-label", `删除会话：${session.title || "未命名会话"}`);
+        remove.disabled = busy;
+        row.append(button, remove);
+        list.append(row);
+      }
+    }
+
+    async function selectSession(sessionId) {
+      const requestVersion = ++state.messagesRequestVersion;
+      state.activeSessionId = sessionId;
+      state.messages = [];
+      state.messagesLoading = Boolean(sessionId);
+      renderSessions();
+      renderChat();
+      if (!sessionId) return;
+      try {
+        const payload = await api(`/v1/sessions/${encodeURIComponent(sessionId)}/messages`);
+        if (requestVersion !== state.messagesRequestVersion || state.activeSessionId !== sessionId) return;
+        state.messages = listFrom(payload, ["messages", "items"]);
+        renderChat();
+      } catch (error) {
+        if (requestVersion === state.messagesRequestVersion) showError(error, "无法加载会话消息");
+      } finally {
+        if (requestVersion === state.messagesRequestVersion) {
+          state.messagesLoading = false;
+          renderChat();
+        }
+      }
+    }
+
+    function openDeleteSession(sessionId) {
+      if (state.chatBusy || state.deletingSession) return;
+      const session = state.sessions.find((item) => item.session_id === sessionId);
+      if (!session) return;
+      state.deleteSessionId = sessionId;
+      byId("deleteSessionTarget").textContent = session.title || "未命名会话";
+      byId("deleteSessionError").hidden = true;
+      byId("deleteSessionDialog").showModal();
+    }
+
+    async function deleteSession(event) {
+      event.preventDefault();
+      if (!state.deleteSessionId || state.deletingSession || state.chatBusy) return;
+      const sessionId = state.deleteSessionId;
+      state.deletingSession = true;
+      ++state.sessionsRequestVersion;
+      const button = byId("confirmDeleteSession");
+      button.disabled = true;
+      button.textContent = "删除中…";
+      byId("cancelDeleteSession").disabled = true;
+      byId("deleteSessionError").hidden = true;
+      renderSessions();
+      renderChat();
+      try {
+        const result = unwrap(await api(`/v1/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" }));
+        state.sessions = state.sessions.filter((item) => item.session_id !== sessionId);
+        byId("deleteSessionDialog").close();
+        state.deleteSessionId = null;
+        if (state.activeSessionId === sessionId) {
+          byId("chatInput").value = "";
+          await selectSession(state.sessions[0]?.session_id || null);
+        }
+        notify(result.deleted === false ? "该会话已不存在，列表已更新" : "会话及聊天消息已删除，长期记忆已保留");
+        await loadMemoryCandidates();
+      } catch (error) {
+        byId("deleteSessionError").textContent = `删除失败：${describeError(error)}`;
+        byId("deleteSessionError").hidden = false;
+      } finally {
+        state.deletingSession = false;
+        button.disabled = false;
+        button.textContent = "删除会话";
+        byId("cancelDeleteSession").disabled = false;
+        renderSessions();
+        renderChat();
+        if (!byId("deleteSessionDialog").open) {
+          (byId("sessionList").querySelector('[aria-pressed="true"]') || byId("newSessionButton")).focus();
+        }
+      }
+    }
+
+    function renderChat() {
+      const session = state.sessions.find((item) => item.session_id === state.activeSessionId);
+      byId("activeSessionTitle").textContent = session?.title || (session ? "未命名会话" : "尚未选择会话");
+      byId("activeSessionMeta").textContent = session
+        ? `会话 ID：${session.session_id}`
+        : "新建或选择一个会话后开始";
+      byId("sendButton").disabled = !session || state.chatBusy || state.deletingSession || state.messagesLoading;
+      byId("chatInput").disabled = !session || state.chatBusy || state.deletingSession || state.messagesLoading;
+      const list = byId("messageList");
+      list.replaceChildren();
+      if (!session) {
+        list.append(emptyNode("请选择一个会话", "短期上下文按会话隔离，长期记忆在工作空间内共享。"));
+        return;
+      }
+      if (state.messagesLoading) {
+        list.append(emptyNode("正在加载消息", "正在恢复所选会话的聊天记录。"));
+        return;
+      }
+      if (!state.messages.length) {
+        list.append(emptyNode("开始一轮新对话", "可以询问资料，也可以明确表达需要长期记住或忘记的信息。"));
+        return;
+      }
+      for (const message of state.messages) {
+        const article = document.createElement("article");
+        const meta = document.createElement("div");
+        const role = document.createElement("span");
+        const time = document.createElement("span");
+        const content = document.createElement("p");
+        article.className = `message ${message.role === "user" ? "user" : "assistant"}`;
+        meta.className = "message-meta";
+        role.textContent = message.role === "user" ? "你" : "DiscreteMemory";
+        time.textContent = formatTime(message.created_at);
+        content.className = "message-content";
+        content.textContent = message.content || "";
+        meta.append(role, time);
+        article.append(meta, content);
+        if (message.role === "assistant" && message.metadata?.memory_notice) {
+          const notice = document.createElement("p");
+          notice.className = "memory-notice";
+          notice.textContent = message.metadata.memory_notice;
+          notice.style.cssText = "font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;white-space:pre-wrap";
+          article.append(notice);
+        }
+        const trace = message.metadata?.trace;
+        if (trace && typeof trace === "object") article.append(traceDetails(trace));
+        list.append(article);
+      }
+      requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+    }
+
+    async function submitChat(event) {
+      event.preventDefault();
+      const input = byId("chatInput");
+      const message = input.value.trim();
+      if (!state.activeSessionId || !message || state.chatBusy || state.deletingSession || state.messagesLoading) return;
+      const sessionId = state.activeSessionId;
+      state.chatBusy = true;
+      ++state.messagesRequestVersion;
+      renderSessions();
+      renderChat();
+      const button = byId("sendButton");
+      button.disabled = true;
+      button.textContent = "处理中…";
+      clearError();
+      try {
+        const result = await api("/v1/chat", {
+          method: "POST",
+          body: { session_id: sessionId, message },
+        });
+        input.value = "";
+        if (result?.user_message && result?.assistant_message) {
+          state.messages.push(result.user_message, result.assistant_message);
+          renderChat();
+        } else {
+          await selectSession(state.activeSessionId);
+        }
+        await refreshSessionSummaries();
+        if (result?.trace?.write_decision || result?.trace?.intent === "memory_forget") {
+          await loadMemories({ clearErrors: false });
+        }
+      } catch (error) { showError(error, "对话请求失败"); }
+      finally {
+        state.chatBusy = false;
+        button.textContent = "发送";
+        renderSessions();
+        renderChat();
+      }
+    }
+
+    async function refreshSessionSummaries() {
+      const requestVersion = ++state.sessionsRequestVersion;
+      try {
+        const payload = await api("/v1/sessions");
+        if (requestVersion !== state.sessionsRequestVersion) return;
+        state.sessions = listFrom(payload, ["sessions", "items"]);
+        renderSessions();
+      } catch { /* 消息已经成功，不用用次要刷新覆盖结果 */ }
+    }
+
+    async function loadMemories({ clearErrors = true } = {}) {
+      if (clearErrors) clearError();
+      await Promise.all([loadStoredMemories(), loadMemoryCandidates()]);
+    }
+
+    async function loadStoredMemories() {
+      const requestVersion = ++state.storedMemoriesRequestVersion;
+      try {
+        const activePayload = await api("/v1/memories?status=active&limit=10000");
+        let deleted = state.memories.filter((item) => item.status === "deleted");
+        let deletedLoadError = null;
+        try {
+          const deletedPayload = await api("/v1/memories?status=deleted&limit=10000");
+          deleted = listFrom(deletedPayload, ["memories", "items"]);
+        } catch (error) {
+          deletedLoadError = error;
+        }
+        if (requestVersion !== state.storedMemoriesRequestVersion) return;
+        const all = [...listFrom(activePayload, ["memories", "items"]), ...deleted];
+        state.memories = Array.from(new Map(all.map((item) => [item.memory_id, item])).values());
+        state.memoryHistoryEpoch += 1;
+        state.memoryHistories.clear();
+        state.memoryHistoryErrors.clear();
+        state.openMemoryHistoryIds.clear();
+        state.loadingMemoryHistoryIds.clear();
+        renderMemories();
+        if (deletedLoadError) {
+          showError(deletedLoadError, "已加载有效记忆，但无法读取删除记录");
+        }
+      } catch (error) {
+        if (requestVersion === state.storedMemoriesRequestVersion) {
+          showError(error, "无法加载长期记忆");
+        }
+      }
+    }
+
+    async function loadMemoryCandidates() {
+      const requestVersion = ++state.memoryCandidatesRequestVersion;
+      state.memoryCandidatesLoading = true;
+      state.memoryCandidatesError = null;
+      renderMemoryCandidates();
+      try {
+        const payload = await api("/v1/memory-candidates?status=pending&limit=10000");
+        if (requestVersion !== state.memoryCandidatesRequestVersion) return;
+        state.memoryCandidates = listFrom(payload, ["items", "candidates"]);
+      } catch (error) {
+        if (requestVersion !== state.memoryCandidatesRequestVersion) return;
+        state.memoryCandidates = [];
+        state.memoryCandidatesError = error;
+        showError(error, "无法加载待确认记忆");
+      } finally {
+        if (requestVersion !== state.memoryCandidatesRequestVersion) return;
+        state.memoryCandidatesLoading = false;
+        renderMemoryCandidates();
+      }
+    }
+
+    function renderMemoryCandidates() {
+      const list = byId("memoryCandidateList");
+      const count = byId("memoryCandidateCount");
+      count.textContent = state.memoryCandidatesLoading
+        ? "加载中"
+        : `${state.memoryCandidates.length} 条`;
+      list.setAttribute("aria-busy", String(state.memoryCandidatesLoading));
+      list.replaceChildren();
+      if (state.memoryCandidatesLoading) {
+        list.append(emptyNode("正在加载待确认记忆", "请稍候。"));
+        return;
+      }
+      if (state.memoryCandidatesError) {
+        list.append(emptyNode("待确认记忆加载失败", describeError(state.memoryCandidatesError)));
+        return;
+      }
+      if (!state.memoryCandidates.length) {
+        list.append(emptyNode("没有待确认记忆", "聊天中识别出的长期事实会先出现在这里，由你决定是否保存。"));
+        return;
+      }
+      for (const candidate of state.memoryCandidates) {
+        const id = candidate.candidate_id || candidate.id;
+        if (!id) continue;
+        const card = document.createElement("article");
+        const content = document.createElement("div");
+        const title = document.createElement("div");
+        const slot = document.createElement("strong");
+        const status = document.createElement("span");
+        const value = document.createElement("p");
+        const meta = document.createElement("div");
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        const audit = document.createElement("pre");
+        const actions = document.createElement("div");
+        card.className = "memory-card is-candidate";
+        slot.textContent = candidate.slot || "unknown.slot";
+        status.className = "badge pending";
+        status.textContent = "待确认";
+        title.className = "memory-title";
+        title.append(slot, status);
+        value.className = "memory-value";
+        value.textContent = displayValue(candidate.value);
+        meta.className = "memory-meta";
+        meta.append(
+          document.createTextNode(`类型：${candidate.memory_type || "scalar"}`),
+          document.createTextNode(`语义：${candidate.semantic_type || "未分类"}`),
+          document.createTextNode(`原因：${candidate.reason_code || "待用户审核"}`),
+          document.createTextNode(`提出于：${formatTime(candidate.created_at) || "-"}`)
+        );
+        details.className = "governance-details";
+        summary.textContent = "查看写入决策来源";
+        audit.className = "trace-code";
+        audit.textContent = JSON.stringify({
+          candidate_id: id,
+          session_id: candidate.session_id || null,
+          source_message_id: candidate.source_message_id || null,
+          reason_code: candidate.reason_code || null,
+          policy_version: candidate.policy_version || null,
+          provenance: candidate.provenance || null,
+        }, null, 2);
+        details.append(summary, audit);
+        content.append(title, value, meta, details);
+        actions.className = "card-actions";
+        actions.append(
+          candidateActionButton("确认写入", "confirm", id, candidate.slot, ""),
+          candidateActionButton("拒绝", "reject", id, candidate.slot, "danger")
+        );
+        card.append(content, actions);
+        list.append(card);
+      }
+    }
+
+    function candidateActionButton(label, action, id, slot, style = "secondary") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `button small ${style}`.trim();
+      button.dataset.candidateAction = action;
+      button.dataset.candidateId = id;
+      button.disabled = state.candidateActionIds.has(id);
+      button.textContent = button.disabled ? "处理中…" : label;
+      button.setAttribute("aria-label", `${label}：${slot || id}`);
+      return button;
+    }
+
+    async function handleCandidateAction(event) {
+      const button = event.target.closest("[data-candidate-action]");
+      if (!button) return;
+      const id = button.dataset.candidateId;
+      const action = button.dataset.candidateAction;
+      if (!id || state.candidateActionIds.has(id)) return;
+      clearError();
+      state.candidateActionIds.add(id);
+      const card = button.closest(".memory-card");
+      const buttons = card ? [...card.querySelectorAll("button")] : [button];
+      buttons.forEach((item) => { item.disabled = true; });
+      try {
+        if (action === "confirm") {
+          const response = unwrap(await api(`/v1/memory-candidates/${encodeURIComponent(id)}/confirm`, { method: "POST" }));
+          const actionText = {
+            created: "候选已确认并创建长期记忆",
+            updated: "候选已确认并更新长期记忆",
+            skipped: "候选已确认，现有记忆已包含该内容",
+            duplicate: "候选已确认，现有记忆已包含该内容",
+            unchanged: "候选已确认，现有记忆无需变更",
+          };
+          notify(actionText[response.action] || "候选已确认");
+          await loadMemories();
+        } else if (action === "reject") {
+          await api(`/v1/memory-candidates/${encodeURIComponent(id)}/reject`, { method: "POST" });
+          notify("候选已拒绝，不会写入长期记忆");
+          await loadMemoryCandidates();
+        }
+      } catch (error) {
+        if (error.status === 404 || error.status === 409) {
+          await loadMemories({ clearErrors: false });
+        }
+        showError(error, action === "confirm" ? "确认候选失败" : "拒绝候选失败");
+      } finally {
+        state.candidateActionIds.delete(id);
+        renderMemoryCandidates();
+      }
+    }
+
+    function renderMemories() {
+      const active = state.memories.filter((item) => item.status !== "deleted");
+      const deleted = state.memories.filter((item) => item.status === "deleted");
+      byId("activeMemoryCount").textContent = String(active.length);
+      byId("deletedMemoryCount").textContent = String(deleted.length);
+      byId("memorySlotCount").textContent = String(new Set(active.map((item) => item.slot)).size);
+      const visible = state.memories.filter((item) => state.memoryFilter === "all" || item.status === state.memoryFilter);
+      byId("memoryListMeta").textContent = `显示 ${visible.length} / ${state.memories.length} 条`;
+      const list = byId("memoryList");
+      list.replaceChildren();
+      if (!visible.length) {
+        list.append(emptyNode("当前筛选下没有记忆", "新增明确事实，或切换上方状态筛选。"));
+        return;
+      }
+      for (const memory of visible) {
+        const card = document.createElement("article");
+        const content = document.createElement("div");
+        const title = document.createElement("div");
+        const slot = document.createElement("strong");
+        const status = document.createElement("span");
+        const value = document.createElement("p");
+        const meta = document.createElement("div");
+        const actions = document.createElement("div");
+        card.className = "memory-card";
+        card.classList.toggle("is-deleted", memory.status === "deleted");
+        title.className = "memory-title";
+        slot.textContent = memory.slot || "unknown.slot";
+        status.className = `badge ${memory.status === "deleted" ? "deleted" : "active"}`;
+        status.textContent = memory.status === "deleted" ? "已逻辑删除" : "有效";
+        value.className = "memory-value";
+        value.textContent = displayValue(memory.value);
+        meta.className = "memory-meta";
+        meta.append(
+          document.createTextNode(`类型：${memory.memory_type || memory.cardinality || "scalar"}`),
+          document.createTextNode(`版本：v${memory.version || memory.current_version || 1}`),
+          document.createTextNode(`来源：${memory.source || "user"}`)
+        );
+        title.append(slot, status);
+        content.append(title, value, meta);
+        actions.className = "card-actions";
+        const historyOpen = state.openMemoryHistoryIds.has(memory.memory_id);
+        const historyButton = actionButton(historyOpen ? "收起历史" : "查看历史", "history", memory.memory_id, "secondary");
+        historyButton.setAttribute("aria-expanded", String(historyOpen));
+        historyButton.setAttribute("aria-controls", `memory-history-${encodeURIComponent(memory.memory_id)}`);
+        actions.append(historyButton);
+        if (memory.status === "deleted") {
+          actions.append(actionButton("彻底清除", "purge", memory.memory_id, "danger"));
+        } else {
+          actions.append(actionButton("编辑", "edit", memory.memory_id, "secondary"));
+          actions.append(actionButton("逻辑删除", "delete", memory.memory_id, "danger"));
+        }
+        card.append(content, actions);
+        if (state.editingMemoryId === memory.memory_id) card.append(memoryEditForm(memory));
+        if (historyOpen) card.append(renderMemoryHistory(memory));
+        list.append(card);
+      }
+    }
+
+    function actionButton(label, action, id, style = "secondary") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `button small ${style}`.trim();
+      button.dataset.memoryAction = action;
+      button.dataset.memoryId = id;
+      button.textContent = label;
+      button.setAttribute("aria-label", `${label}：${id}`);
+      return button;
+    }
+
+    function renderMemoryHistory(memory) {
+      const id = memory.memory_id;
+      const root = document.createElement("section");
+      const head = document.createElement("div");
+      const heading = document.createElement("h3");
+      const summary = document.createElement("span");
+      root.id = `memory-history-${encodeURIComponent(id)}`;
+      root.className = "memory-history";
+      root.setAttribute("aria-label", `${memory.slot || id} 的版本历史`);
+      head.className = "memory-history-head";
+      heading.textContent = "版本历史";
+      head.append(heading, summary);
+      root.append(head);
+      if (state.loadingMemoryHistoryIds.has(id)) {
+        summary.textContent = "加载中";
+        const status = document.createElement("p");
+        status.className = "memory-history-status";
+        status.setAttribute("role", "status");
+        status.textContent = "正在读取审计记录……";
+        root.append(status);
+        return root;
+      }
+      const error = state.memoryHistoryErrors.get(id);
+      if (error) {
+        summary.textContent = "加载失败";
+        const status = document.createElement("p");
+        status.className = "memory-history-status";
+        status.textContent = describeError(error);
+        root.append(status, actionButton("重试", "history-retry", id, "secondary"));
+        return root;
+      }
+      const history = state.memoryHistories.get(id) || [];
+      summary.textContent = `${history.length} 个版本`;
+      if (!history.length) {
+        const status = document.createElement("p");
+        status.className = "memory-history-status";
+        status.textContent = "没有可显示的历史版本。";
+        root.append(status);
+        return root;
+      }
+      const list = document.createElement("div");
+      list.className = "history-list";
+      for (const revision of history) {
+        const entry = document.createElement("article");
+        const entryHead = document.createElement("div");
+        const version = document.createElement("strong");
+        const operation = document.createElement("span");
+        const time = document.createElement("time");
+        const value = document.createElement("p");
+        const meta = document.createElement("div");
+        const operationLabels = { created: "创建", edited: "编辑", deleted: "逻辑删除" };
+        entry.className = "history-entry";
+        entryHead.className = "history-entry-head";
+        version.textContent = `v${revision.version || 1}`;
+        operation.className = `badge ${revision.status === "deleted" ? "deleted" : revision.status === "active" ? "active" : "neutral"}`;
+        operation.textContent = operationLabels[revision.operation] || revision.operation || revision.status || "变更";
+        const createdAt = revision.revision_created_at || revision.created_at;
+        time.dateTime = createdAt || "";
+        time.textContent = formatTime(createdAt) || "时间未知";
+        entryHead.append(version, operation, time);
+        value.className = "memory-value";
+        value.textContent = displayValue(revision.value);
+        meta.className = "memory-meta";
+        meta.append(
+          document.createTextNode(`来源：${revision.source || "user"}`),
+          document.createTextNode(`来源消息：${revision.source_message_id || "-"}`)
+        );
+        entry.append(entryHead, value, meta);
+        list.append(entry);
+      }
+      root.append(list);
+      return root;
+    }
+
+    async function loadMemoryHistory(id) {
+      const epoch = state.memoryHistoryEpoch;
+      clearError();
+      state.loadingMemoryHistoryIds.add(id);
+      state.memoryHistoryErrors.delete(id);
+      renderMemories();
+      try {
+        const payload = await api(`/v1/memories/${encodeURIComponent(id)}/history`);
+        if (epoch !== state.memoryHistoryEpoch) return;
+        state.memoryHistories.set(id, listFrom(payload, ["items", "history", "revisions"]));
+      } catch (error) {
+        if (epoch !== state.memoryHistoryEpoch) return;
+        state.memoryHistoryErrors.set(id, error);
+        showError(error, "无法加载记忆历史");
+      } finally {
+        if (epoch !== state.memoryHistoryEpoch) return;
+        state.loadingMemoryHistoryIds.delete(id);
+        renderMemories();
+      }
+    }
+
+    function memoryEditForm(memory) {
+      const form = document.createElement("form");
+      const textarea = document.createElement("textarea");
+      const actions = document.createElement("div");
+      const cancel = document.createElement("button");
+      const save = document.createElement("button");
+      form.className = "edit-form";
+      form.dataset.editMemoryId = memory.memory_id;
+      form.dataset.valueType = Array.isArray(memory.value) ? "array" : typeof memory.value;
+      textarea.className = "textarea";
+      textarea.name = "value";
+      textarea.maxLength = 500;
+      textarea.required = true;
+      textarea.value = typeof memory.value === "string" ? memory.value : JSON.stringify(memory.value);
+      actions.className = "form-actions";
+      cancel.type = "button";
+      cancel.className = "button small secondary";
+      cancel.dataset.cancelEdit = "true";
+      cancel.textContent = "取消";
+      save.type = "submit";
+      save.className = "button small";
+      save.textContent = "保存新版本";
+      actions.append(cancel, save);
+      form.append(textarea, actions);
+      return form;
+    }
+
+    async function handleMemoryAction(event) {
+      const button = event.target.closest("[data-memory-action]");
+      if (!button) return;
+      const id = button.dataset.memoryId;
+      const memory = state.memories.find((item) => item.memory_id === id);
+      if (button.dataset.memoryAction === "history") {
+        if (state.openMemoryHistoryIds.has(id)) {
+          state.openMemoryHistoryIds.delete(id);
+          renderMemories();
+          return;
+        }
+        state.openMemoryHistoryIds.add(id);
+        renderMemories();
+        if (!state.memoryHistories.has(id) && !state.loadingMemoryHistoryIds.has(id)) {
+          await loadMemoryHistory(id);
+        }
+      } else if (button.dataset.memoryAction === "history-retry") {
+        state.memoryHistoryErrors.delete(id);
+        await loadMemoryHistory(id);
+      } else if (button.dataset.memoryAction === "edit") {
+        state.editingMemoryId = id;
+        renderMemories();
+      } else if (button.dataset.memoryAction === "delete") {
+        if (!window.confirm(`逻辑删除“${memory?.slot || id}”？该条目将退出长期记忆检索；审计历史、聊天消息和资料仍保留。`)) return;
+        button.disabled = true;
+        try {
+          await api(`/v1/memories/${encodeURIComponent(id)}`, { method: "DELETE" });
+          notify("记忆已逻辑删除");
+          await loadMemories();
+        } catch (error) { showError(error, "删除记忆失败"); }
+        finally { if (button.isConnected) button.disabled = false; }
+      } else if (button.dataset.memoryAction === "purge") {
+        state.purgeMemoryId = id;
+        byId("purgeTarget").textContent = memory?.slot || id;
+        byId("purgeConfirm").value = "";
+        byId("purgeButton").disabled = true;
+        byId("purgeDialog").showModal();
+      }
+    }
+
+    async function submitMemoryEdit(event) {
+      const form = event.target.closest("[data-edit-memory-id]");
+      if (!form) return;
+      event.preventDefault();
+      const rawValue = new FormData(form).get("value")?.trim();
+      if (!rawValue) return;
+      let value = rawValue;
+      if (form.dataset.valueType !== "string") {
+        try {
+          value = JSON.parse(rawValue);
+          const parsedType = Array.isArray(value) ? "array" : typeof value;
+          if (parsedType !== form.dataset.valueType) {
+            throw new Error(`需要保持 ${form.dataset.valueType} 类型`);
+          }
+        } catch (error) {
+          showError(error, "结构化记忆必须是合法 JSON，且不能改变数据类型");
+          return;
+        }
+      }
+      const submit = form.querySelector("button[type=submit]");
+      submit.disabled = true;
+      try {
+        await api(`/v1/memories/${encodeURIComponent(form.dataset.editMemoryId)}`, {
+          method: "PATCH", body: { value }
+        });
+        state.editingMemoryId = null;
+        notify("记忆已保存为新版本");
+        await loadMemories();
+      } catch (error) { showError(error, "更新记忆失败"); }
+      finally { submit.disabled = false; }
+    }
+
+    async function loadDocuments() {
+      try {
+        const payload = await api("/v1/documents");
+        state.documents = listFrom(payload, ["documents", "items"]);
+        const validIds = new Set(state.documents.map((item) => item.document_id));
+        state.selectedDocumentIds = new Set([...state.selectedDocumentIds].filter((id) => validIds.has(id)));
+        renderDocuments();
+        renderJobDocumentPicker();
+      } catch (error) { showError(error, "无法加载资料目录"); }
+    }
+
+    function renderDocuments() {
+      const list = byId("documentList");
+      byId("documentCount").textContent = `${state.documents.length} 份资料`;
+      list.replaceChildren();
+      if (!state.documents.length) {
+        list.append(emptyNode("还没有导入资料", "先导入简历、项目说明或研究笔记。"));
+        return;
+      }
+      for (const item of state.documents) {
+        const card = document.createElement("article");
+        const content = document.createElement("div");
+        const title = document.createElement("h3");
+        const source = document.createElement("p");
+        const path = document.createElement("p");
+        const button = document.createElement("button");
+        card.className = "document-card";
+        title.textContent = item.title || item.source_id || "未命名资料";
+        source.textContent = `来源：${item.source_id || "-"} · ${item.chunks?.length ?? item.chunk_count ?? 0} 个分块`;
+        path.textContent = item.path || "";
+        content.append(title, source, path);
+        button.type = "button";
+        button.className = "button small danger";
+        button.dataset.deleteDocument = item.document_id;
+        button.textContent = "删除";
+        card.append(content, button);
+        list.append(card);
+      }
+    }
+
+    function renderJobDocumentPicker() {
+      const list = byId("jobDocumentList");
+      list.replaceChildren();
+      if (!state.documents.length) {
+        list.append(emptyNode("暂无可选资料", "请先在资料工作区导入简历或项目文档。"));
+        return;
+      }
+      for (const item of state.documents) {
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        const copy = document.createElement("span");
+        const title = document.createElement("strong");
+        const source = document.createElement("span");
+        label.className = "source-option";
+        checkbox.type = "checkbox";
+        checkbox.value = item.document_id;
+        checkbox.checked = state.selectedDocumentIds.has(item.document_id);
+        checkbox.dataset.jobDocument = "true";
+        title.textContent = item.title || item.source_id;
+        source.textContent = item.source_id || item.document_id;
+        copy.append(title, source);
+        label.append(checkbox, copy);
+        list.append(label);
+      }
+    }
+
+    function renderJobFitResult(payload) {
+      const root = byId("jobFitResult");
+      root.replaceChildren();
+      const result = unwrap(payload);
+      if (result.ok === false) {
+        const error = result.error || {};
+        root.append(emptyNode("分析未完成", `${error.message || "模型输出未通过校验"}${error.detail ? `：${error.detail}` : ""}`));
+        if (result.trace) root.append(traceDetails(result.trace));
+        return;
+      }
+      const analysis = result.analysis || result;
+      const sourceTitles = new Map(
+        (result.sources || []).map((source) => [
+          source.source_id,
+          source.title || source.catalog_source_id || source.source_id,
+        ])
+      );
+      for (const memory of state.memories) {
+        sourceTitles.set(`memory:${memory.memory_id}`, `长期记忆：${memory.slot}`);
+      }
+      const groups = [
+        ["匹配项", analysis.matches || [], renderMatch],
+        ["能力缺口", analysis.gaps || [], renderGap],
+        ["准备计划", analysis.preparation_plan || [], renderPlan],
+        ["证据", analysis.evidence || [], (item) => renderEvidence(item, sourceTitles)],
+      ];
+      const stack = document.createElement("div");
+      stack.className = "result-stack";
+      for (const [title, items, renderer] of groups) {
+        const section = document.createElement("section");
+        const heading = document.createElement("h3");
+        section.className = "result-section";
+        heading.textContent = `${title} · ${items.length}`;
+        section.append(heading);
+        if (!items.length) {
+          const p = document.createElement("p");
+          p.style.cssText = "margin:0;color:var(--muted);font-size:12px";
+          p.textContent = "暂无内容";
+          section.append(p);
+        } else items.forEach((item) => section.append(renderer(item)));
+        stack.append(section);
+      }
+      if (result.trace) stack.append(traceDetails(result.trace));
+      root.append(stack);
+    }
+
+    function resultItem(title, detail, tags = [], className = "") {
+      const item = document.createElement("div");
+      const strong = document.createElement("strong");
+      const p = document.createElement("p");
+      item.className = `result-item ${className}`.trim();
+      strong.textContent = title || "未命名项目";
+      p.textContent = detail || "";
+      item.append(strong, p);
+      if (tags.length) {
+        const tagRoot = document.createElement("div");
+        tagRoot.className = "result-tags";
+        for (const tag of tags) {
+          const badge = document.createElement("span");
+          badge.className = "badge neutral";
+          badge.textContent = tag;
+          tagRoot.append(badge);
+        }
+        item.append(tagRoot);
+      }
+      return item;
+    }
+
+    function renderMatch(item) { return resultItem(item.requirement, item.assessment, item.evidence_ids || []); }
+    function renderGap(item) {
+      const node = resultItem(item.requirement, item.reason, [item.gap_id].filter(Boolean));
+      const badge = document.createElement("span");
+      badge.className = `badge ${item.priority || "neutral"}`;
+      badge.textContent = item.priority || "未分级";
+      node.querySelector("strong").append(" ", badge);
+      return node;
+    }
+    function renderPlan(item) {
+      return resultItem(item.action, `验收标准：${item.success_criteria || "未提供"}`, item.gap_ids || []);
+    }
+    function renderEvidence(item, sourceTitles) {
+      const source = sourceTitles.get(item.source_id) || item.source_id || "未知来源";
+      return resultItem(`${item.evidence_id || "证据"} · ${source}`, item.quote, [], "quote");
+    }
+
+    async function initialize() {
+      setConnection("pending");
+      renderChat();
+      renderMemories();
+      renderMemoryCandidates();
+      renderDocuments();
+      renderJobDocumentPicker();
+      renderJobFitResult({ analysis: { matches: [], gaps: [], preparation_plan: [], evidence: [] } });
+      await Promise.all([loadSessions(), loadMemories(), loadDocuments()]);
+    }
+
+    document.querySelectorAll("[data-view]").forEach((button) => {
+      button.addEventListener("click", () => setView(button.dataset.view));
+    });
+    byId("closeError").addEventListener("click", clearError);
+    byId("newSessionButton").addEventListener("click", () => byId("sessionDialog").showModal());
+    document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+      button.addEventListener("click", () => byId(button.dataset.closeDialog).close());
+    });
+    byId("sessionList").addEventListener("click", (event) => {
+      if (state.chatBusy || state.deletingSession) return;
+      const remove = event.target.closest("[data-delete-session-id]");
+      if (remove) {
+        openDeleteSession(remove.dataset.deleteSessionId);
+        return;
+      }
+      const button = event.target.closest("[data-session-id]");
+      if (button) selectSession(button.dataset.sessionId);
+    });
+    byId("deleteSessionForm").addEventListener("submit", deleteSession);
+    byId("deleteSessionDialog").addEventListener("cancel", (event) => {
+      if (state.deletingSession) event.preventDefault();
+    });
+    byId("deleteSessionDialog").addEventListener("close", () => {
+      state.deleteSessionId = null;
+    });
+    byId("sessionForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const title = byId("sessionTitle").value.trim();
+      const submit = event.target.querySelector("button[type=submit]");
+      submit.disabled = true;
+      try {
+        const response = unwrap(await api("/v1/sessions", { method: "POST", body: title ? { title } : {} }));
+        const created = response.session || response;
+        byId("sessionDialog").close();
+        byId("sessionTitle").value = "";
+        await loadSessions(created.session_id);
+        notify("新会话已创建");
+      } catch (error) { showError(error, "创建会话失败"); }
+      finally { submit.disabled = false; }
+    });
+    byId("chatForm").addEventListener("submit", submitChat);
+    byId("chatInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        byId("chatForm").requestSubmit();
+      }
+    });
+
+    byId("refreshMemories").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try { await loadMemories(); }
+      finally { button.disabled = false; }
+    });
+    document.querySelectorAll("[data-memory-filter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.memoryFilter = button.dataset.memoryFilter;
+        document.querySelectorAll("[data-memory-filter]").forEach((item) => item.classList.toggle("is-active", item === button));
+        renderMemories();
+      });
+    });
+    byId("memoryList").addEventListener("click", (event) => {
+      if (event.target.closest("[data-cancel-edit]")) {
+        state.editingMemoryId = null;
+        renderMemories();
+        return;
+      }
+      handleMemoryAction(event);
+    });
+    byId("memoryList").addEventListener("submit", submitMemoryEdit);
+    byId("memoryCandidateList").addEventListener("click", handleCandidateAction);
+    byId("purgeConfirm").addEventListener("input", (event) => {
+      byId("purgeButton").disabled = event.target.value.trim() !== "彻底删除";
+    });
+    byId("purgeForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!state.purgeMemoryId || byId("purgeConfirm").value.trim() !== "彻底删除") return;
+      const id = state.purgeMemoryId;
+      byId("purgeButton").disabled = true;
+      try {
+        await api(`/v1/memories/${encodeURIComponent(id)}/purge`, { method: "DELETE" });
+        byId("purgeDialog").close();
+        state.purgeMemoryId = null;
+        notify("记忆及全部历史已彻底清除");
+        await loadMemories();
+      } catch (error) { showError(error, "彻底清除失败"); }
+      finally {
+        byId("purgeButton").disabled = byId("purgeConfirm").value.trim() !== "彻底删除";
+      }
+    });
+
+    byId("refreshDocuments").addEventListener("click", loadDocuments);
+    byId("documentForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(event.target);
+      const file = data.get("file");
+      if (!(file instanceof File) || !file.name) {
+        showError(new Error("请选择 TXT 或 Markdown 文件"), "导入资料失败");
+        return;
+      }
+      if (file.size > 2_000_000) {
+        showError(new Error("文件不能超过 2 MB"), "导入资料失败");
+        return;
+      }
+      const stem = file.name.replace(/\.(txt|md|markdown)$/i, "").trim() || "document";
+      const sourceId = data.get("source_id").trim() || stem;
+      const title = data.get("title").trim() || stem;
+      const submit = event.target.querySelector("button[type=submit]");
+      submit.disabled = true;
+      try {
+        const body = {
+          source_id: sourceId,
+          title,
+          filename: file.name,
+          content: await file.text()
+        };
+        const result = unwrap(await api("/v1/documents", { method: "POST", body }));
+        notify(result.action === "duplicate" ? "检测到重复资料，未重复索引" : "资料已导入并同步索引");
+        event.target.reset();
+        await loadDocuments();
+      } catch (error) { showError(error, "导入资料失败"); }
+      finally { submit.disabled = false; }
+    });
+    byId("documentList").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-delete-document]");
+      if (!button) return;
+      if (!window.confirm("删除工作区中的资料副本并重建知识索引？原始文件不会被修改。")) return;
+      button.disabled = true;
+      try {
+        await api(`/v1/documents/${encodeURIComponent(button.dataset.deleteDocument)}`, { method: "DELETE" });
+        notify("资料已从工作区删除");
+        await loadDocuments();
+      } catch (error) { showError(error, "删除资料失败"); }
+      finally { if (button.isConnected) button.disabled = false; }
+    });
+    byId("jobDocumentList").addEventListener("change", (event) => {
+      const checkbox = event.target.closest("[data-job-document]");
+      if (!checkbox) return;
+      if (checkbox.checked) state.selectedDocumentIds.add(checkbox.value);
+      else state.selectedDocumentIds.delete(checkbox.value);
+    });
+    byId("jobFitForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const jdText = byId("jdText").value.trim();
+      if (!jdText) return;
+      const body = { jd_text: jdText };
+      if (state.selectedDocumentIds.size) body.document_ids = [...state.selectedDocumentIds];
+      const button = byId("jobFitButton");
+      button.disabled = true;
+      button.textContent = "分析中…";
+      try {
+        const result = await api("/v1/job-fit", { method: "POST", body });
+        renderJobFitResult(result);
+        if (unwrap(result).ok === false) showError(new Error(unwrap(result).error?.message || "岗位分析未完成"), "岗位分析未完成");
+        else notify("岗位匹配分析已完成");
+      } catch (error) {
+        renderJobFitResult({ ok: false, error: { message: describeError(error) } });
+        showError(error, "岗位匹配请求失败");
+      } finally {
+        button.disabled = false;
+        button.textContent = "开始岗位匹配";
+      }
+    });
+
+    initialize();
+  </script>
+</body>
+</html>

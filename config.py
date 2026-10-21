@@ -1,41 +1,109 @@
+"""Environment-backed configuration for the local-first DiscreteMemory product."""
+
 import os
+from pathlib import Path, PureWindowsPath
+
 from dotenv import load_dotenv
 
-# .env 文件里的配置，注入系统环境
-load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def _local_path(value):
+    """Accept Windows drive paths when this checkout runs under WSL."""
+    raw = str(value).strip()
+    windows_path = PureWindowsPath(raw)
+    if os.name != "nt" and windows_path.is_absolute():
+        drive = windows_path.drive
+        if len(drive) == 2 and drive[1] == ":":
+            mount = Path("/mnt") / drive[0].lower()
+            if mount.is_dir():
+                return mount.joinpath(*windows_path.parts[1:])
+    return Path(raw).expanduser()
+
+
+def _resolve_project_path(value, project_root=None):
+    """Keep data/state paths stable across IDE, CLI and WSL working dirs."""
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError("project path must not be empty")
+    path = _local_path(raw)
+    if not path.is_absolute():
+        path = Path(project_root or PROJECT_ROOT) / path
+    return str(path.resolve(strict=False))
+
+
+def _resolve_model_reference(value, project_root=None):
+    """Resolve local model paths without rewriting Hugging Face model IDs.
+
+    PyCharm, ``uvicorn`` and WSL shells do not necessarily share the same
+    current working directory.  Explicit/available local paths are therefore
+    anchored to the repository, while references such as
+    ``BAAI/bge-small-zh-v1.5`` remain valid remote model identifiers.
+    """
+
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError("model reference must not be empty")
+    path = _local_path(raw)
+    if path.is_absolute():
+        return str(path.resolve(strict=False))
+    root = Path(project_root or PROJECT_ROOT)
+    candidate = root / path
+    if raw.startswith((".", "~")) or candidate.exists():
+        return str(candidate.resolve(strict=False))
+    return raw
+
+
+def _load_project_environment():
+    """Load the project .env and an optional explicitly configured env file."""
+    load_dotenv(PROJECT_ROOT / ".env")
+    external = os.getenv("DISCRETE_MEMORY_ENV_FILE", "").strip()
+    if external:
+        path = Path(_resolve_project_path(external))
+        if not path.is_file():
+            raise FileNotFoundError(f"external environment file does not exist: {path}")
+        # Explicit process environment values retain their normal precedence.
+        load_dotenv(path)
+
+
+_load_project_environment()
+
 
 class Config:
-    # 模型路径
-    EMBED_MODEL_PATH = os.getenv("EMBED_MODEL_PATH", "./models/bge-small-zh-v1.5")
-    RERANK_MODEL_PATH = os.getenv("RERANK_MODEL_PATH", "./models/bge-reranker-base")
-
-    # Ollama 配置
-    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+    EMBED_MODEL_PATH = _resolve_model_reference(
+        os.getenv("EMBED_MODEL_PATH", "./models/bge-small-zh-v1.5")
+    )
+    OLLAMA_URL = os.getenv(
+        "OLLAMA_URL", "http://localhost:11434/api/generate"
+    )
     LLM_MODEL = os.getenv("LLM_MODEL", "llama3:8b")
+    LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 
-    # 数据路径
-    DATA_PATH = os.getenv("DATA_PATH", "./data/Journey to the West.txt")
+    SHORT_TERM_LIMIT = int(os.getenv("SHORT_TERM_LIMIT", "5"))
 
+    DEFAULT_WORKSPACE_ID = os.getenv("DEFAULT_WORKSPACE_ID", "local")
+    PRODUCT_DB_PATH = _resolve_project_path(
+        os.getenv("PRODUCT_DB_PATH", "./storage/discrete_memory.db")
+    )
+    DOCUMENTS_PATH = _resolve_project_path(
+        os.getenv("DOCUMENTS_PATH", "./storage/documents")
+    )
+    API_HOST = os.getenv("API_HOST", "127.0.0.1")
+    API_PORT = int(os.getenv("API_PORT", "8000"))
 
-    # 向量库参数
-    BASE_DB_PATH = "./storage/base_knowledge"  # 基础知识库
-    MEMORY_DB_PATH = "./storage/user_memory"  # 动态记忆库（读写聊天记录）
-    VECTOR_DIM = 512 # BGE-small-zh-v1.5 的默认向量维度是 512，VECTOR_DIM 需要与之匹配，否则 FAISS 会报错.
+    BASE_DB_PATH = _resolve_project_path(
+        os.getenv("BASE_DB_PATH", "./storage/career_knowledge")
+    )
+    MEMORY_DB_PATH = _resolve_project_path(
+        os.getenv("MEMORY_DB_PATH", "./storage/user_memory")
+    )
+    VECTOR_DIM = int(os.getenv("VECTOR_DIM", "512"))
 
-    # 切分参数
-    CHUNK_SIZE = 300
-    CHUNK_OVERLAP = 50
-    OVERLAP_SENTENCE = 1
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "300"))
+    OVERLAP_SENTENCE = int(os.getenv("OVERLAP_SENTENCE", "1"))
 
-    # 检索策略参数
-    # 写入阈值
-    THRESHOLD = 0.6 # 记忆入库的距离阈值，只有当新记忆与库中最相似的记忆的距离大于该值时，才会被认为是新的、独特的记忆并存入库中，避免重复记忆。
-    #读取阈值
-    BASE_MAX_DISTANCE = 1.2  # 基础库的最大容忍距离
-    MEMORY_MAX_DISTANCE = 1.5  # 记忆库的最大容忍距离
-    # 基础知识库
-    BASE_RECALL_K = 10 # FAISS 粗排召回数量。
-    BASE_RERANK_K = 3 # BGE 精排最终保留数量。
-    # 动态记忆库
-    MEMORY_RECALL_K = 3
-    MEMORY_RERANK_K = 1
+    BASE_MAX_DISTANCE = float(os.getenv("BASE_MAX_DISTANCE", "1.2"))
+    MEMORY_MAX_DISTANCE = float(os.getenv("MEMORY_MAX_DISTANCE", "1.5"))
+    BASE_RECALL_K = int(os.getenv("BASE_RECALL_K", "3"))
+    MEMORY_RECALL_K = int(os.getenv("MEMORY_RECALL_K", "3"))

@@ -1,137 +1,231 @@
-# 在底层加载 BGE 嵌入模型、FAISS 向量库和大模型等核心资源并注入给 RAG 业务流，随后接管所有的终端问答输入循环。
-# 这个文件是整个系统的入口，负责启动时的环境准备、组件初始化、主对话循环以及最终的资源清理和显存监控数据可视化。
+"""CLI, demo and local product-server entry for DiscreteMemory."""
 
-import transformers
-# 屏蔽 transformers 的底层警告，只保留严重的报错
-transformers.logging.set_verbosity_error()
+import argparse
+import json
+from pathlib import Path
 
-import os
-import sys
-
-# 1. 强制清理环境变量，确保 WSL2 直连 Windows 上的 Ollama，不走代理
-for var in ["http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"]:
-    os.environ.pop(var, None)
-
-from models.embedding import EmbeddingModel
-from models.reranker import RerankerModel
-from models.llm import LLMModel
-from retrieval.vector_store import VectorStore
-from memory.memory_manager import MemoryManager
-from utils.text_splitter import SentenceBoundaryChunker
-from pipeline.rag_pipeline import RAGPipeline
 from config import Config
-from monitor import VRAMMonitor
+from product_store import ProductStore
 
 
-def main():
+def print_product_memories(records):
+    visible = [
+        {
+            "memory_id": item.get("memory_id"),
+            "slot": item.get("slot"),
+            "value": item.get("value"),
+            "memory_type": item.get("memory_type"),
+            "version": item.get("version"),
+            "status": item.get("status"),
+        }
+        for item in records
+    ]
+    if not visible:
+        print("当前没有 active 长期记忆。")
+        return
+    print(json.dumps(visible, ensure_ascii=False, indent=2))
+
+
+def print_memory_candidates(records):
+    visible = [
+        {
+            "candidate_id": item.get("candidate_id"),
+            "slot": item.get("slot"),
+            "value": item.get("value"),
+            "reason_code": item.get("reason_code"),
+            "policy_version": item.get("policy_version"),
+            "status": item.get("status"),
+        }
+        for item in records
+    ]
+    if not visible:
+        print("当前没有 pending 待确认记忆。")
+        return
+    print(json.dumps(visible, ensure_ascii=False, indent=2))
+
+
+def _open_demo_runtime(root, resources=None):
+    """Compose the real product path against isolated temporary stores."""
+
+    from product.runtime import build_engine, build_product_runtime
+
+    root = Path(root)
+    resources = resources or {}
+
+    def engine_factory():
+        return build_engine(
+            memory_db_path=str(root / "memory"),
+            base_db_path=str(root / "base"),
+            embed_model=resources.get("embedder"),
+            llm=resources.get("llm"),
+        )
+
+    return build_product_runtime(
+        engine_factory=engine_factory,
+        db_path=root / "product.db",
+        documents_path=root / "documents",
+        workspace_id="demo",
+    )
+
+
+def run_demo():
+    """Exercise natural conversations and the real memory lifecycle."""
+    from eval.conversation_demo import run_conversation_demo
+
+    resources = {}
+
+    def factory(root):
+        runtime = _open_demo_runtime(root, resources)
+        resources.update(embedder=runtime.engine.mm.embed_model, llm=runtime.engine.llm)
+        return runtime
+
+    report = run_conversation_demo(factory)
+    if report["passed_steps"] != report["steps"]:
+        raise SystemExit(1)
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="DiscreteMemory 本地演示")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--demo",
+        action="store_true",
+        help="在临时记忆库中运行一键 Demo",
+    )
+    group.add_argument(
+        "--list-memories",
+        action="store_true",
+        help="查看产品数据库中的 active 离散记忆，不加载模型",
+    )
+    group.add_argument(
+        "--serve",
+        action="store_true",
+        help="启动本地 FastAPI 产品与网页界面",
+    )
+    group.add_argument(
+        "--import-legacy-memories",
+        action="store_true",
+        help="一次性将旧向量记忆导入全新 SQLite workspace；请先备份旧索引",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    if args.import_legacy_memories:
+        from product.runtime import build_product_runtime
+
+        runtime = build_product_runtime(import_legacy_memories=True)
+        try:
+            print(json.dumps(runtime.startup, ensure_ascii=False, indent=2))
+        finally:
+            runtime.close()
+        return
+    if args.list_memories:
+        with ProductStore(
+            Config.PRODUCT_DB_PATH,
+            default_workspace_id=Config.DEFAULT_WORKSPACE_ID,
+        ) as store:
+            print_product_memories(
+                store.list_memories(
+                    workspace_id=Config.DEFAULT_WORKSPACE_ID,
+                    limit=10_000,
+                )
+            )
+        return
+    if args.demo:
+        run_demo()
+        return
+    if args.serve:
+        import uvicorn
+
+        from api.app import create_app
+
+        uvicorn.run(
+            create_app(),
+            host=Config.API_HOST,
+            port=Config.API_PORT,
+        )
+        return
+
     print("\n" + "=" * 50)
-    print(" Memory RAG 完整本地版 (GPU 加速已激活)")
+    print(" DiscreteMemory：写入受治理的离散长期记忆系统")
     print("=" * 50)
 
-    monitor = VRAMMonitor()
-
     try:
-        monitor.start()
+        from product.runtime import build_product_runtime
 
-        # 1 模型加载与 GPU 预热
-        # 加载 Embedding 模型 (BGE-small-zh)
-        embed_model = EmbeddingModel(Config.EMBED_MODEL_PATH)
-
-        # 加载 Reranker 模型 (BGE-reranker-base)
-        reranker_model = RerankerModel(Config.RERANK_MODEL_PATH)
-
-        # 加载 LLM (Ollama / Llama3)
-        llm = LLMModel(Config.OLLAMA_URL, Config.LLM_MODEL)
-
-        # 初始化切分器
-        chunker = SentenceBoundaryChunker(Config.CHUNK_SIZE, Config.OVERLAP_SENTENCE)
-
-        # 2 基础知识读取与文本简单清洗
-        base_vs = VectorStore(Config.BASE_DB_PATH, Config.VECTOR_DIM)
-
-        if os.path.exists(Config.DATA_PATH):
-            with open(Config.DATA_PATH, 'r', encoding='utf-8') as f:
-                raw_text = f.read()
-                # .split(): 把所有空格、多个空格、换行、制表符都切掉，形成以字符串为单位的列表；
-                # " ".join(): 将列表中的字符串用空格连接起来，形成一个新的字符串。
-                # 这样就实现了对原始文本的清洗，去掉了多余的空白字符，使得文本更加紧凑和规范。
-                clean_text = " ".join(raw_text.split())
-
-            # 离线向量化入库，冷启动时为基础知识库建立索引
-            if clean_text:
-                # 只有当库里还没数据时，才进行初始入库，避免重复
-                if base_vs.total_count == 0:
-                    print(f" 正在为基础知识库建立索引: {Config.DATA_PATH}...")
-                    chunks = chunker.split_text(clean_text)
-                    embs = embed_model.get_embeddings(chunks)
-                    base_vs.add_texts(chunks, embs)
-                    print(f" VectorStore: 基础知识入库成功，共 {len(chunks)} 条知识。")
-                else:
-                    print(f" VectorStore: 检测到已有索引，跳过基础知识入库。")
-            else:
-                print(f" 警告: {Config.DATA_PATH} 是空文件，跳过入库。")
-        else:
-            print(f" 警告: 未找到初始文档 {Config.DATA_PATH}，将开启空白记忆模式。")
-
-        # 3 正式在线问答业务流
-        # 加载动态记忆库
-        memory_vs = VectorStore(Config.MEMORY_DB_PATH, Config.VECTOR_DIM)
-        print(f" 动态记忆库: 加载完毕，当前拥有 {memory_vs.total_count} 条历史记忆。")
-
-        # 实例化记忆管家和 Pipeline
-        memory_manager = MemoryManager(
-            base_vs = base_vs,
-            memory_vs = memory_vs,
-            embed_model = embed_model,
-            reranker_model = reranker_model,
-            chunker = chunker,
-            threshold = Config.THRESHOLD,
-            base_max_dist = Config.BASE_MAX_DISTANCE,
-            memory_max_dist = Config.MEMORY_MAX_DISTANCE,
-            base_recall_k = Config.BASE_RECALL_K,
-            base_rerank_k = Config.BASE_RERANK_K,
-            memory_recall_k = Config.MEMORY_RECALL_K,
-            memory_rerank_k = Config.MEMORY_RERANK_K
+        runtime = build_product_runtime()
+        application = runtime.application
+        session = application.create_session("CLI 会话")
+        print(
+            f"active 长期记忆: {len(application.list_memories(limit=10_000))}"
         )
-        rag = RAGPipeline(llm, memory_manager)
+        print(
+            "输入 /memories 查看 active 记忆，/candidates 查看待确认记忆，"
+            "/confirm <id> 或 /reject <id> 处理候选；输入 exit 或 quit 退出。"
+        )
 
-        print("\n[系统就绪] 请开始对话。输入 'exit' 或 'quit' 退出程序。")
+        try:
+            while True:
+                query = input("\n[用户]: ").strip()
+                if not query:
+                    continue
+                if query.lower() in {"exit", "quit", "退出"}:
+                    break
+                if query.lower() == "/memories":
+                    print_product_memories(application.list_memories(limit=10_000))
+                    continue
+                if query.lower() == "/candidates":
+                    print_memory_candidates(
+                        application.list_memory_candidates(
+                            status="pending", limit=10_000
+                        )
+                    )
+                    continue
+                command, _, candidate_id = query.partition(" ")
+                if command.lower() in {"/confirm", "/reject"}:
+                    candidate_id = candidate_id.strip()
+                    if not candidate_id:
+                        print(f"用法：{command.lower()} <candidate_id>")
+                        continue
+                    try:
+                        if command.lower() == "/confirm":
+                            outcome = application.confirm_memory_candidate(
+                                candidate_id
+                            )
+                            print(
+                                "候选已确认："
+                                + json.dumps(outcome, ensure_ascii=False)
+                            )
+                        else:
+                            outcome = application.reject_memory_candidate(
+                                candidate_id
+                            )
+                            print(
+                                "候选已拒绝："
+                                + json.dumps(outcome, ensure_ascii=False)
+                            )
+                    except Exception as exc:
+                        print(f"[错误]: {exc}")
+                    continue
 
-        # --- 主对话循环 ---
-        while True:
-            query = input("\n[用户]: ").strip()
-
-            # 退出指令判断
-            if not query:
-                continue
-            if query.lower() in ['exit', 'quit', '退出']:
-                print("\n正在保存记忆并退出系统... 再见！")
-                break
-
-            # 执行 RAG 流程
-            try:
-                answer = rag.run(query)
-                print(f"[AI]: {answer}")
-            except Exception as e:
-                print(f"\n[错误]: 推理过程中出现问题: {e}")
-                print("[提示]: 请检查 Ollama 是否已启动，或显存是否溢出。")
-
+                try:
+                    result = application.chat(session["session_id"], query)
+                    print(f"[AI]: {result['answer']}")
+                    notice = result["assistant_message"]["metadata"].get("memory_notice")
+                    if notice:
+                        print(f"[记忆]: {notice}")
+                    print(
+                        "[Tool Trace]: "
+                        + json.dumps(result["trace"], ensure_ascii=False)
+                    )
+                except Exception as exc:
+                    print(f"[错误]: {exc}")
+        finally:
+            runtime.close()
     except KeyboardInterrupt:
-        # 处理 Ctrl+C 强制退出
-        print("\n\n检测到中断指令，正在安全关闭...")
-    except Exception as e:
-        # 处理启动时的严重错误
-        print(f"\n[崩溃]: 程序启动失败: {e}")
-    finally:
-        # 无论你是正常退出、报错崩溃、还是 Ctrl+C 强退，这里都会百分百执行
-        if monitor and monitor.is_running:
-            print("\n 正在整理压测数据并生成显存折线图...")
-            output_dir = "outputs"  # 定义一个专门放输出文件的文件夹
-            os.makedirs(output_dir, exist_ok=True)  # 如果文件夹不存在，全自动创建
-            # 放入路径：outputs/vram_test_result.png
-            save_path = os.path.join(output_dir, "vram_test_result.png")
-            monitor.stop_and_plot(save_path=save_path)
-        sys.exit(0)
+        print("\n已停止。")
 
 
 if __name__ == "__main__":
