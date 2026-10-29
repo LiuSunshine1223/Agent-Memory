@@ -1,11 +1,11 @@
-"""Small Ollama client used by the local workflow."""
+"""本地流程使用的轻量 Ollama 客户端。"""
 
 import requests
 from urllib.parse import urlsplit, urlunsplit
 
 
 class LLMUnavailableError(RuntimeError):
-    """Raised when Ollama cannot return a valid answer."""
+    """Ollama 无法返回有效回答时抛出的异常。"""
 
 
 class LLMModel:
@@ -20,11 +20,11 @@ class LLMModel:
         return self._generate(prompt, system=system)
 
     def ask_json(self, prompt, *, schema=None, system=None):
-        """Constrain syntax for structured tasks; callers still validate schema."""
+        """约束结构化任务的输出语法；调用方仍须校验字段结构。"""
         return self._generate(prompt, json_mode=True, schema=schema, system=system)
 
     def chat(self, messages):
-        """Preserve real user/assistant turns through Ollama's chat endpoint."""
+        """通过 Ollama 聊天接口保留真实的用户与助手轮次。"""
         self.last_response_metadata = {}
         parts = urlsplit(self.url)
         endpoint = urlunsplit(parts._replace(path=parts.path.rsplit("/", 1)[0] + "/chat"))

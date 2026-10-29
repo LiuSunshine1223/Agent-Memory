@@ -6,7 +6,6 @@
     "recall_routing": 32,
     "consent": 156,
     "lifecycle": 88,
-    "jobfit": 40,
     "latency_messages": 12
   }
 }

@@ -1,24 +1,23 @@
-"""Thin product orchestration for sessions, memory, documents and job fit.
+"""负责会话、记忆和文档的轻量应用编排层。
 
-All components are injected.  Constructing :class:`ProductApplication` never
-loads an embedding model, an LLM, FAISS, or a document from disk.  A later CLI
-or HTTP adapter owns that composition and can map the original domain
-exceptions without this layer hiding them.
+所有组件均通过依赖注入提供。构造 Application 时不会加载
+嵌入模型、大模型、FAISS，也不会从磁盘读取文档。
+命令行或 HTTP 适配层负责后续组装，并可映射原始业务异常；
+本层不会隐藏这些异常。
 """
 
 from __future__ import annotations
 
-import json
 from os import PathLike
 from threading import RLock
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from product.write_policy import ConsentAwareWritePolicy
 from models.llm import LLMUnavailableError
 
 
 class ProductApplication:
-    """Coordinate the local-first product's existing bounded services."""
+    """协调本地应用中职责明确的各项服务。"""
 
     def __init__(
         self,
@@ -27,7 +26,6 @@ class ProductApplication:
         memory_service,
         engine,
         document_lifecycle,
-        job_fit_service,
         workspace_id: str | None = None,
         write_policy=None,
         fact_extractor=None,
@@ -36,7 +34,6 @@ class ProductApplication:
         self.memory = memory_service
         self.engine = engine
         self.documents = document_lifecycle
-        self.job_fit_service = job_fit_service
         self.workspace_id = str(
             workspace_id
             or getattr(memory_service, "workspace_id", None)
@@ -64,12 +61,12 @@ class ProductApplication:
         if not callable(getattr(self.write_policy, "decide", None)):
             raise TypeError("write_policy must expose decide(text, candidate_count=...)")
         self.store.create_workspace(self.workspace_id)
-        # A single mutable short-term buffer backs the current local engine.
-        # Serializing stateful operations prevents two HTTP requests from
-        # restoring different sessions into it at the same time.
+        # 当前本地引擎共用一个可变的短期对话缓冲区。
+        # 将有状态的操作串行执行，避免两个 HTTP 请求
+        # 同时将不同会话的历史恢复到该缓冲区。
         self._state_lock = RLock()
 
-    # Sessions and chat
+    # 会话与聊天
 
     def create_session(
         self,
@@ -97,25 +94,24 @@ class ProductApplication:
         )
 
     def delete_session(self, session_id: str) -> dict[str, Any]:
-        """Delete a conversation and its messages, preserving long-term memory."""
+        """删除会话及其消息，保留长期记忆。"""
         session_id = self._required_text(session_id, "session_id")
-        # Wait for any in-flight chat before deleting its persisted messages.
+        # 删除持久化消息前，等待正在执行的聊天请求完成。
         with self._state_lock:
             deleted = self.store.delete_session(
                 session_id, workspace_id=self.workspace_id
             )
             if deleted:
-                # The next chat restores its own session from SQLite.
+                # 下一轮聊天会从 SQLite 恢复其所属会话。
                 self.manager.short_term_history = []
             return {"session_id": session_id, "deleted": deleted}
 
     def chat(self, session_id: str, message: str) -> dict[str, Any]:
-        """Run one turn and persist both messages plus the execution trace.
+        """执行一轮对话，持久化双方消息和执行记录。
 
-        Memory admission reads the original user message independently of the
-        answer route. Mixed assertion/question turns can answer and stage a
-        candidate together; all persistent effects remain governed by the
-        memory service and the existing consent policy.
+        记忆保存授权独立于回答路线，直接依据用户原话判断。
+        同一句话同时包含陈述和问题时，可以生成回答并提出待确认候选；
+        所有持久化操作仍由记忆服务与现有授权策略控制。
         """
 
         message = self._required_text(message, "message")
@@ -136,7 +132,7 @@ class ProductApplication:
                 "intent": decision.intent,
                 "route_intent": decision.intent,
                 "route_reason": str(getattr(decision, "reason", "")),
-                # Session-local evidence; this does not authorize long-term storage.
+                # 仅作为会话内证据，不代表用户已授权长期保存。
                 "facts": [{"slot": fact.slot, "value": fact.value, "evidence": fact.evidence}
                           for fact in extracted],
             }
@@ -189,8 +185,8 @@ class ProductApplication:
                     answer = execute(message, decision, user_facts=user_metadata["facts"]) if callable(execute) else self.engine.run(message)
                     answer = self._required_text(answer, "engine answer")
                 except LLMUnavailableError:
-                    # Memory admission has already completed independently.
-                    # Persist a visible outcome rather than hiding it behind a 503.
+                    # 记忆保存或候选处理此前已独立完成。
+                    # 持久化可见的处理结果，避免仅返回 503 而掩盖已有结果。
                     answer_failed = True
                     answer = "回答生成失败：本地模型暂时不可用。请检查 Ollama 后重试提问。"
                     self.manager.add_to_short_term(message, answer)
@@ -230,7 +226,7 @@ class ProductApplication:
                 "trace": trace,
             }
 
-    # Governed memory API
+    # 受授权与生命周期规则约束的记忆接口
 
     def create_memory(
         self,
@@ -326,7 +322,7 @@ class ProductApplication:
     def export_workspace(self) -> dict:
         return self.memory.export()
 
-    # Knowledge document lifecycle
+    # 知识文档生命周期
 
     def import_document(
         self,
@@ -335,7 +331,7 @@ class ProductApplication:
         source_id: str | None = None,
         title: str | None = None,
     ) -> dict[str, Any]:
-        """Import an API-managed/local path and make its chunks searchable."""
+        """导入接口管理的文件或本地路径，使其分块可被检索。"""
 
         with self._state_lock:
             change = self.documents.import_document(
@@ -378,61 +374,8 @@ class ProductApplication:
             "sync": self._sync_payload(sync) if sync is not None else None,
         }
 
-    # Product task workflow
 
-    def job_fit(
-        self,
-        jd_text: str,
-        *,
-        source_ids: Sequence[str] | None = None,
-    ) -> dict[str, Any]:
-        """Analyze a JD against selected catalog documents and active memory."""
-
-        with self._state_lock:
-            records = self._select_documents(source_ids)
-            document_context = [
-                {
-                    "source_id": f"doc:{record.document_id}",
-                    "title": record.title,
-                    "kind": self._document_kind(record),
-                    "content": "\n".join(record.chunks),
-                }
-                for record in records
-            ]
-            memory_context = [
-                {
-                    "memory_id": item["memory_id"],
-                    "slot": item["slot"],
-                    "value": self._value_text(item["value"]),
-                    "status": item["status"],
-                }
-                for item in self.memory.list(limit=1_000)
-            ]
-            result = self.job_fit_service.analyze(
-                jd_text,
-                documents=document_context,
-                active_memory=memory_context,
-            )
-
-        if hasattr(result, "to_dict"):
-            payload = result.to_dict()
-        elif isinstance(result, dict):
-            payload = dict(result)
-        else:
-            raise TypeError("job_fit_service.analyze must return a dict-like result")
-        payload["sources"] = [
-            {
-                "source_id": f"doc:{record.document_id}",
-                "document_id": record.document_id,
-                "catalog_source_id": record.source_id,
-                "title": record.title,
-                "path": record.path,
-            }
-            for record in records
-        ]
-        return payload
-
-    # Internal adapters
+    # 内部适配方法
 
     def _restore_short_term(self, session_id: str) -> None:
         messages = self.store.list_messages(
@@ -615,33 +558,6 @@ class ProductApplication:
         if vector_store is not None:
             self.manager.base_vs = vector_store
 
-    def _select_documents(self, source_ids: Sequence[str] | None):
-        records = list(self.documents.list_documents())
-        if source_ids is None:
-            return records
-        if isinstance(source_ids, (str, bytes)):
-            raise ValueError("source_ids must be a sequence of identifiers")
-        wanted = {self._required_text(value, "source_id") for value in source_ids}
-        selected = [
-            record
-            for record in records
-            if record.source_id in wanted
-            or record.document_id in wanted
-            or f"doc:{record.document_id}" in wanted
-        ]
-        found = {
-            identifier
-            for record in selected
-            for identifier in (
-                record.source_id,
-                record.document_id,
-                f"doc:{record.document_id}",
-            )
-        }
-        missing = sorted(wanted - found)
-        if missing:
-            raise ValueError("unknown document source: " + ", ".join(missing))
-        return selected
 
     @staticmethod
     def _resolve_engine_manager(engine):
@@ -688,20 +604,6 @@ class ProductApplication:
             "rebuilt": sync.rebuilt,
         }
 
-    @staticmethod
-    def _document_kind(record) -> str:
-        label = f"{record.source_id} {record.title}".casefold()
-        if "resume" in label or "简历" in label:
-            return "resume"
-        if "project" in label or "项目" in label:
-            return "project"
-        return "document"
-
-    @staticmethod
-    def _value_text(value: Any) -> str:
-        if isinstance(value, str):
-            return value
-        return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
     @staticmethod
     def _required_text(value: Any, field: str) -> str:

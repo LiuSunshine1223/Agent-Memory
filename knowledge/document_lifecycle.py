@@ -1,10 +1,8 @@
-"""Small, dependency-free lifecycle for user-owned TXT/Markdown knowledge.
+"""管理用户 TXT/Markdown 资料生命周期的轻量组件，无额外依赖。
 
-The catalog is deliberately separate from the vector index.  It is the source
-of truth and keeps enough chunk text to rebuild an index after a document is
-updated or deleted.  The project ``VectorStore`` supports atomic full
-replacement; alternative stores without that operation can provide a factory
-that creates a fresh store.
+文档目录清单与向量索引相互独立。目录清单是权威来源，保留足够的分块文本，
+以便文档更新或删除后重建索引。项目的 VectorStore 支持原子性整体替换；
+不支持该操作的其他存储实现，可提供用于创建新存储的工厂函数。
 """
 
 from __future__ import annotations
@@ -25,12 +23,12 @@ _SUPPORTED_SUFFIXES = {".txt", ".md", ".markdown"}
 
 
 class RebuildRequiredError(RuntimeError):
-    """The injected store cannot safely remove or replace indexed records."""
+    """注入的存储无法安全删除或替换已索引的记录。"""
 
 
 @dataclass(frozen=True)
 class DocumentRecord:
-    """One active source document stored in the durable catalog."""
+    """持久化目录清单中的一份有效来源文档。"""
 
     source_id: str
     document_id: str
@@ -72,7 +70,7 @@ class DocumentRecord:
 
 @dataclass(frozen=True)
 class DocumentChange:
-    """Outcome of one import operation."""
+    """一次导入操作的结果。"""
 
     action: str
     document: DocumentRecord
@@ -81,7 +79,7 @@ class DocumentChange:
 
 @dataclass(frozen=True)
 class SyncResult:
-    """Outcome of synchronizing the catalog to a vector store."""
+    """将目录清单同步到向量存储的结果。"""
 
     desired_count: int
     added: int
@@ -92,12 +90,11 @@ class SyncResult:
 
 
 class DocumentLifecycle:
-    """Manage a small local document catalog and its derived vector index.
+    """管理小型本地文档目录清单及其派生向量索引。
 
-    Parameters are dependency-injected so the production embedding model,
-    sentence splitter and FAISS ``VectorStore`` can be replaced by light fakes
-    in tests.  ``vector_store_factory`` is only needed for a store that does
-    not implement ``replace_all``.
+    通过参数注入依赖，便于在测试中用轻量替身替换实际使用的嵌入模型、
+    分句器和 FAISS VectorStore。只有存储未实现 replace_all 时，
+    才需要提供 vector_store_factory。
     """
 
     def __init__(
@@ -123,11 +120,10 @@ class DocumentLifecycle:
         source_id: Optional[str] = None,
         title: Optional[str] = None,
     ) -> DocumentChange:
-        """Import or update one UTF-8 TXT/Markdown source.
+        """导入或更新一份 UTF-8 编码的 TXT/Markdown 来源文档。
 
-        The same ``source_id`` retains its ``document_id`` across updates.
-        Identical normalized content under another source is reported as a
-        duplicate and is not indexed twice.
+        同一 source_id 在更新时保留原有 document_id。
+        若另一来源的规范化内容完全相同，则报告重复，不再重复建立索引。
         """
 
         source_path = Path(path).expanduser().resolve()
@@ -218,10 +214,10 @@ class DocumentLifecycle:
         source_id: Optional[str] = None,
         document_id: Optional[str] = None,
     ) -> bool:
-        """Delete one document from the catalog.
+        """从目录清单中删除一份文档。
 
-        Exactly one identifier must be supplied.  Call :meth:`sync` afterwards
-        to rebuild an index that already contains the deleted chunks.
+        必须且只能提供一个标识。随后调用 :meth:`sync`，
+        重建仍包含已删除分块的索引。
         """
 
         if bool(source_id) == bool(document_id):
@@ -276,12 +272,11 @@ class DocumentLifecycle:
             )
 
     def sync(self) -> SyncResult:
-        """Synchronize active catalog chunks into the injected vector store.
+        """将目录清单中的有效分块同步到注入的向量存储。
 
-        New chunks and metadata-only changes are applied incrementally.
-        Content updates and deletions use the store's atomic ``replace_all``
-        operation, with a fresh-store factory retained as a compatibility
-        fallback for simpler vector-store implementations.
+        新增分块和仅涉及元数据的变更采用增量更新。
+        内容更新和删除使用存储的原子性 replace_all 操作；
+        对于更简单的存储实现，保留新建存储的工厂函数作为兼容方案。
         """
 
         if self.vector_store is None:
@@ -378,7 +373,7 @@ class DocumentLifecycle:
             )
 
     def rebuild(self) -> SyncResult:
-        """Build all active catalog chunks into a new empty vector store."""
+        """将目录清单中的所有有效分块写入一个新的空向量存储。"""
 
         with self._lock:
             desired = self._desired_chunks()

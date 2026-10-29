@@ -1,1 +1,1 @@
-"""Document lifecycle primitives for the local knowledge workspace."""
+"""本地知识工作空间的文档生命周期基础组件。"""

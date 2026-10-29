@@ -237,39 +237,6 @@ SEMANTIC_QUERIES = {
 LIFECYCLE_TYPES_ALL_SLOTS = ["update", "delete", "purge"]
 LIFECYCLE_TYPES_SAMPLED = ["update_delete", "restart", "index_loss", "candidate_confirm", "candidate_reject"]
 
-# ---------------------------------------------------------------------------
-# 求职匹配：虚构简历和岗位描述，匹配项和缺口在构造时已知
-# 技能名选用彼此不包含的词，便于自动判断
-# ---------------------------------------------------------------------------
-SKILLS = [
-    "Python", "MySQL", "Docker", "Kubernetes", "PyTorch", "FastAPI", "Spark", "Tableau",
-    "Redis", "Kafka", "TensorFlow", "Airflow", "PostgreSQL", "React", "Linux", "Git",
-]
-JOBFIT_TEXT = {
-    "zh": {
-        "names": ["林晓", "周然", "许诺", "沈一舟"],
-        "schools": ["某理工大学", "某师范大学", "某财经大学", "某工业大学"],
-        "titles": ["机器学习工程师实习生", "数据分析实习生", "后端开发实习生", "AI 应用工程师实习生"],
-        "tasks": ["一个数据清洗流程", "一个推荐服务的后端接口", "实验结果的可视化看板", "模型训练与评估脚本", "日志采集与分析流程", "一个内部知识库检索服务"],
-        "requirements": ["熟练使用{s}", "有{s}项目经验", "熟悉{s}", "了解{s}的基本原理"],
-        "project_line": "- 使用{s}完成{task}。",
-        "resume": "姓名：{name}\n教育背景：{school}，计算机科学硕士\n项目经历：\n{projects}\n技能：{skills}",
-        "skill_sep": "、",
-        "jd": "岗位名称：{title}\n工作职责：参与团队相关系统的开发与维护。\n任职要求：\n{requirements}",
-    },
-    "en": {
-        "names": ["Alex Chen", "Priya Nair", "Marcus Lee", "Siti Rahman"],
-        "schools": ["a technical university", "a state university", "a business school", "an engineering college"],
-        "titles": ["Machine Learning Engineer Intern", "Data Analyst Intern", "Backend Engineer Intern", "AI Application Engineer Intern"],
-        "tasks": ["a data cleaning pipeline", "a backend API for a recommendation service", "a dashboard for experiment results", "model training and evaluation scripts", "a log collection and analysis pipeline", "an internal knowledge-base search service"],
-        "requirements": ["Proficient in {s}", "Hands-on experience with {s}", "Familiar with {s}", "Working knowledge of {s}"],
-        "project_line": "- Built {task} using {s}.",
-        "resume": "Name: {name}\nEducation: MSc in Computer Science, {school}\nProjects:\n{projects}\nSkills: {skills}",
-        "skill_sep": ", ",
-        "jd": "Position: {title}\nResponsibilities: Develop and maintain the team's internal systems.\nRequirements:\n{requirements}",
-    },
-}
-
 LATENCY_MESSAGES = [
     ("zh", "什么是RAG？"),
     ("zh", "怎么准备机器学习岗位的面试？"),
@@ -436,44 +403,6 @@ def build_lifecycle(rng: random.Random) -> list[dict]:
     return scenarios
 
 
-def build_jobfit(rng: random.Random, per_lang: int = 20) -> list[dict]:
-    cases = []
-    for lang in ("zh", "en"):
-        text = JOBFIT_TEXT[lang]
-        for _ in range(per_lang):
-            jd_skills = rng.sample(SKILLS, 5)
-            matched = rng.sample(jd_skills, rng.randint(2, 4))
-            extras = rng.sample([s for s in SKILLS if s not in jd_skills], rng.randint(1, 2))
-            resume_skills = matched + extras
-            rng.shuffle(resume_skills)
-            tasks = rng.sample(text["tasks"], len(resume_skills))
-            projects = "\n".join(
-                text["project_line"].format(s=skill, task=task)
-                for skill, task in zip(resume_skills, tasks)
-            )
-            resume = text["resume"].format(
-                name=rng.choice(text["names"]),
-                school=rng.choice(text["schools"]),
-                projects=projects,
-                skills=text["skill_sep"].join(resume_skills),
-            )
-            requirements = "\n".join(
-                f"{index}. " + rng.choice(text["requirements"]).format(s=skill)
-                for index, skill in enumerate(jd_skills, start=1)
-            )
-            jd = text["jd"].format(title=rng.choice(text["titles"]), requirements=requirements)
-            cases.append({
-                "id": f"jobfit-{len(cases) + 1:04d}",
-                "lang": lang,
-                "jd_text": jd,
-                "resume": {"source_id": "resume", "title": "Resume" if lang == "en" else "简历", "kind": "resume", "content": resume},
-                "jd_skills": jd_skills,
-                "expected_matches": sorted(matched),
-                "expected_gaps": sorted(set(jd_skills) - set(matched)),
-            })
-    return cases
-
-
 def build_latency() -> list[dict]:
     return [
         {"id": f"lat-{index:02d}", "lang": lang, "text": text}
@@ -492,7 +421,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="生成 DiscreteMemory 评测用例")
     parser.add_argument("--seed", type=int, default=20261010)
     parser.add_argument("--out", type=Path, default=EVAL_DIR / "cases")
-    parser.add_argument("--jobfit-per-lang", type=int, default=20)
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -501,7 +429,6 @@ def main() -> None:
         "recall_routing": build_recall_routing(),
         "consent": build_consent(rng),
         "lifecycle": build_lifecycle(rng),
-        "jobfit": build_jobfit(rng, args.jobfit_per_lang),
         "latency_messages": build_latency(),
     }
     for name, rows in datasets.items():

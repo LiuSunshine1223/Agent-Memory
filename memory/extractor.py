@@ -1,7 +1,7 @@
-"""High-precision extraction for discrete user memories.
+"""面向离散用户记忆的高精度规则提取。
 
-The extractor deliberately prefers missing a vague memory over storing a wrong one.
-It only reads the user's original sentence; model-generated answers never become facts.
+对于模糊的信息，提取器宁可漏提，也不保存错误记忆。
+只读取用户原话，不把模型生成的回答当成事实。
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class ExtractedMemory:
 
 
 class DiscreteMemoryExtractor:
-    """Extract a small, explainable set of long-term fact slots."""
+    """提取少量可解释的长期事实槽位。"""
 
     COLLECTION_SLOTS = frozenset({"preference.like", "preference.dislike"})
 
@@ -38,10 +38,10 @@ class DiscreteMemoryExtractor:
 
     @classmethod
     def has_non_user_context(cls, text: str) -> bool:
-        """Conservatively exclude quotations, reported speech and examples.
+        """保守排除引用、转述和示例。
 
-        This rule extractor does not try to resolve the speaker of a quote.
-        A separate, unquoted first-person assertion can be saved instead.
+        此规则提取器不尝试判断引文中的说话者。
+        用户可以另行给出未被引用的第一人称陈述来保存事实。
         """
         return bool(
             any(mark in text for mark in ('"', '“', '”', '‘', '’', '「', '」', '『', '』', '`'))
@@ -315,7 +315,7 @@ class DiscreteMemoryExtractor:
 
     @classmethod
     def question_text(cls, text: str) -> str:
-        """Select question clauses without treating earlier assertions as questions."""
+        """选出问句分句，避免把前面的陈述也当成问题。"""
         return "".join(
             clause for clause in cls._clauses(cls._normalize(text))
             if cls._is_question_clause(clause)
@@ -323,7 +323,7 @@ class DiscreteMemoryExtractor:
 
     @staticmethod
     def _clauses(text: str) -> list[str]:
-        # Keep punctuation so a question remains a question after splitting.
+        # 保留标点，避免分句后把问句误当成陈述句。
         return [part.strip() for part in re.split(r"(?<=[，,。！？!?；;])", text) if part.strip()]
 
     @classmethod
@@ -357,10 +357,10 @@ class DiscreteMemoryExtractor:
         return has_action and has_target
 
     def forget_value(self, text: str) -> str | None:
-        """An explicit preference value narrows deletion; None means whole slot.
+        """明确给出偏好值时缩小删除范围；None 表示整个槽位。
 
-        Only exact values are removed. Unmatched wording removes nothing;
-        the memory page provides an unambiguous per-item delete operation.
+        只删除完全匹配的值，表述不匹配时不删除任何记录。
+        记忆页面提供可明确指定条目的删除操作。
         """
         match = re.search(r"我(?:不)?喜欢\s*([^，。！？,!?；;]*)", text)
         if not match:
@@ -387,7 +387,7 @@ class DiscreteMemoryExtractor:
         return list(dict.fromkeys(slots))
 
     def infer_recall_slots(self, text: str) -> list[str]:
-        """Map explicit personal questions to structured memory slots."""
+        """将明确的个人信息问题映射到结构化记忆槽位。"""
 
         sentence = self._normalize(text).lower()
         if not sentence:
@@ -400,7 +400,7 @@ class DiscreteMemoryExtractor:
         return slots
 
     def is_list_memory_request(self, text: str) -> bool:
-        """Return whether the user explicitly asks for the whole memory list."""
+        """判断用户是否明确要求查看完整记忆列表。"""
 
         sentence = self._normalize(text).lower()
         return bool(sentence) and any(

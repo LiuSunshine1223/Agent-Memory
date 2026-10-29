@@ -1,7 +1,7 @@
-"""Run the real conversation/memory path on isolated state and retain evidence.
+"""在隔离状态下运行真实对话与记忆流程，并保留验证证据。
 
-Invoked by main.py --demo. State checks and simple answer checks are reported
-separately; raw answers are retained for human review, including failed cases.
+由 main.py --demo 调用。状态检查与简单回答检查分别报告；
+保留原始回答供人工复核，包括失败用例的回答。
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def run_conversation_demo(runtime_factory, *, output_root=None, cases_path=None)
     output_root = Path(output_root or root / "results")
     output_root.mkdir(parents=True, exist_ok=True)
     run = output_root / ("对话Demo_真实Embedding+真实LLM_" + datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S"))
-    run.mkdir()  # Never replace an earlier run.
+    run.mkdir()  # 不覆盖之前的运行结果。
     temp_root = root / "tmp"
     temp_root.mkdir(exist_ok=True)
     records = []
@@ -120,7 +120,7 @@ def run_conversation_demo(runtime_factory, *, output_root=None, cases_path=None)
             finally:
                 runtime.close()
     from config import Config
-    # Reuse the project's existing fingerprint format without re-running suites.
+    # 复用项目已有的指纹格式，无须重新运行评测套件。
     from eval.run_eval import implementation_metadata, source_fingerprint
     report = {
         "protocol": cases["version"], "time": datetime.now(timezone.utc).isoformat(),

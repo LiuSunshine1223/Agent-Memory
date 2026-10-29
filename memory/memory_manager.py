@@ -1,4 +1,4 @@
-"""Discrete long-term memory lifecycle and dual-store retrieval."""
+"""离散长期记忆的生命周期管理，以及知识库和记忆库的检索。"""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class MemoryOperation:
 
 
 class MemoryManager:
-    """Manage short-term dialogue and structured long-term user facts."""
+    """管理短期对话与结构化长期用户事实。"""
 
     _RETRIEVAL_TEXT_TEMPLATES = {
         "profile.name": "用户的名字是{value}",
@@ -72,7 +72,7 @@ class MemoryManager:
         self._backfill_legacy_workspace()
 
     def retrieval_configuration(self):
-        """Return safe runtime information for health checks and demos."""
+        """返回可安全用于健康检查和演示的运行信息。"""
 
         return {
             "strategy": "dense",
@@ -91,9 +91,9 @@ class MemoryManager:
         )
 
     def memorize_to_long_term(self, query):
-        """Low-level evaluation helper, without product consent or SQLite.
+        """底层评测辅助方法，不经过应用授权策略或 SQLite。
 
-        Product callers must use ProductApplication/ProductMemoryService.
+        应用调用方必须使用 ProductApplication 或 ProductMemoryService。
         """
 
         return [
@@ -119,10 +119,10 @@ class MemoryManager:
         confirmed=True,
         memory_id=None,
     ):
-        """Create one governed memory without giving an LLM side effects.
+        """创建一条受程序管理的记忆，不让大模型直接执行存储操作。
 
-        ``scalar`` supersedes the previous active value, ``collection`` keeps
-        multiple distinct values, and ``event`` appends a chronological fact.
+        scalar 替换先前的有效值，collection 保留多个不同值，
+        event 按时间顺序追加事实。
         """
 
         memory_type = str(memory_type or "").strip().lower()
@@ -197,7 +197,7 @@ class MemoryManager:
         if cardinality == "scalar":
             for old_record in active_records:
                 old_metadata = old_record["metadata"]
-                # Legacy scalar preferences can coexist with new collection items.
+                # 旧版单值偏好可以与新版集合条目共存。
                 if old_metadata.get("cardinality", "scalar") != "scalar":
                     continue
                 changed_records.append(
@@ -238,7 +238,7 @@ class MemoryManager:
         return MemoryOperation(action, slot, value, version, memory_id)
 
     def edit_memory(self, memory_id, value):
-        """Version an existing active memory after an explicit user edit."""
+        """用户明确编辑后，为现有有效记忆创建新版本。"""
 
         record = self._find_memory(memory_id, active_only=True)
         if not record:
@@ -302,7 +302,7 @@ class MemoryManager:
             raise
 
     def delete_memory(self, memory_id):
-        """Logically delete one active memory while retaining its audit trail."""
+        """逻辑删除一条有效记忆，同时保留审计记录。"""
 
         record = self._find_memory(memory_id, active_only=True)
         if not record:
@@ -318,7 +318,7 @@ class MemoryManager:
         return True
 
     def purge_memory(self, memory_id):
-        """Physically remove one memory from metadata and its FAISS index."""
+        """从元数据和 FAISS 索引中物理移除一条记忆。"""
 
         if not hasattr(self.memory_vs, "purge_records"):
             raise RuntimeError("the configured vector store cannot purge records")
@@ -331,7 +331,7 @@ class MemoryManager:
         )
 
     def export_memories(self):
-        """Return all memory versions for the current workspace."""
+        """返回当前工作空间中的全部记忆版本。"""
 
         records = []
         for item in self._workspace_records():
@@ -347,7 +347,7 @@ class MemoryManager:
         return records
 
     def forget(self, query):
-        """Low-level vector-only helper for tests/evaluation, not product chat."""
+        """仅操作向量存储的底层测试和评测辅助方法，不用于应用聊天流程。"""
         slots = self.extractor.infer_forget_slots(query)
         if not slots:
             return 0
@@ -436,7 +436,7 @@ class MemoryManager:
         }
 
     def _selected_memory_records(self):
-        """Expose slot identity so answer-time conflicts need no text matching."""
+        """提供槽位标识，使回答阶段处理冲突时无须匹配文本。"""
         records = {item["record_id"]: item for item in self.list_active_memory_records(limit=10_000)}
         return [records[item["record_id"]] for item in (self.last_retrieval_trace or {}).get("candidates", [])
                 if item.get("selected") and item.get("record_id") in records]
@@ -460,7 +460,7 @@ class MemoryManager:
         max_distance=None,
         query_embedding=None,
     ):
-        """Retrieve active workspace memories with dense FAISS search."""
+        """使用 FAISS 稠密向量检索，召回当前工作空间中的有效记忆。"""
 
         started_at = perf_counter()
         filters = {

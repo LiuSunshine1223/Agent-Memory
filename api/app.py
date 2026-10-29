@@ -1,4 +1,4 @@
-"""Thin FastAPI adapter; domain behavior lives in ``product`` services."""
+"""轻量 FastAPI 适配层；业务行为由 product 中的服务实现。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import FastAPI, Query, Request
@@ -78,11 +78,6 @@ class DocumentCreate(_StrictModel):
         return value
 
 
-class JobFitRequest(_StrictModel):
-    jd_text: str = Field(min_length=1, max_length=30_000)
-    document_ids: Optional[List[str]] = Field(default=None, max_length=100)
-
-
 def create_app(
     application=None,
     *,
@@ -90,7 +85,7 @@ def create_app(
     document_root: Optional[Union[str, Path]] = None,
     web_path: Optional[Union[str, Path]] = None,
 ) -> FastAPI:
-    """Create an app with either injected fakes or the real local runtime."""
+    """使用注入的替身组件或真实本地运行环境创建应用。"""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -111,7 +106,7 @@ def create_app(
     app = FastAPI(
         title="DiscreteMemory",
         version="0.1.0",
-        description="本地优先、写入受治理的离散长期记忆系统",
+        description="支持长期记忆与资料问答的对话系统",
         lifespan=lifespan,
     )
     managed_root = Path(document_root or Config.DOCUMENTS_PATH) / "sources"
@@ -267,8 +262,8 @@ def create_app(
                 _delete_if_managed(Path(previous["path"]), managed_root)
             return result
         except Exception:
-            # The catalog remains authoritative.  A failed first import should
-            # not leave an unreferenced upload behind.
+            # 文档目录清单仍是权威来源；首次导入失败时，
+            # 不应遗留没有被目录清单引用的上传文件。
             known_paths = {
                 Path(item["path"]).resolve()
                 for item in product.list_documents()
@@ -295,12 +290,6 @@ def create_app(
             _delete_if_managed(Path(record["path"]), managed_root)
         return result
 
-    @app.post("/v1/job-fit")
-    def job_fit(request: Request, payload: JobFitRequest):
-        return _product(request).job_fit(
-            payload.jd_text,
-            source_ids=payload.document_ids,
-        )
 
     return app
 

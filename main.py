@@ -1,4 +1,4 @@
-"""CLI, demo and local product-server entry for DiscreteMemory."""
+"""DiscreteMemory 的命令行、演示评测与本地服务启动入口。"""
 
 import argparse
 import json
@@ -45,7 +45,7 @@ def print_memory_candidates(records):
 
 
 def _open_demo_runtime(root, resources=None):
-    """Compose the real product path against isolated temporary stores."""
+    """使用隔离的临时存储组装真实应用流程。"""
 
     from product.runtime import build_engine, build_product_runtime
 
@@ -69,7 +69,7 @@ def _open_demo_runtime(root, resources=None):
 
 
 def run_demo():
-    """Exercise natural conversations and the real memory lifecycle."""
+    """运行自然对话与真实记忆生命周期流程。"""
     from eval.conversation_demo import run_conversation_demo
 
     resources = {}

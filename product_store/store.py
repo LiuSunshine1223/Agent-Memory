@@ -1,8 +1,7 @@
-"""Small SQLite persistence layer for sessions and discrete memories.
+"""用于会话与离散记忆的轻量 SQLite 持久化层。
 
-The store intentionally depends only on Python's standard library.  SQLite is
-the source of truth for product state; vector indexes can be rebuilt from the
-current memory records when they are introduced by a higher layer.
+本存储层仅依赖 Python 标准库。SQLite 是应用状态的权威来源；
+上层引入向量索引后，可依据当前记忆记录重新构建索引。
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ MESSAGE_ROLES = frozenset({"system", "user", "assistant", "tool"})
 
 
 def _synchronized_read(method):
-    """Keep one shared SQLite connection from exposing uncommitted writes."""
+    """保护共享 SQLite 连接，避免暴露尚未提交的写入。"""
 
     @wraps(method)
     def wrapped(self, *args, **kwargs):
@@ -36,27 +35,26 @@ def _synchronized_read(method):
 
 
 class ProductStoreError(RuntimeError):
-    """Base exception raised by :class:`ProductStore`."""
+    """ProductStore 抛出的基础异常。"""
 
 
 class NotFoundError(ProductStoreError):
-    """Raised when a workspace-owned resource does not exist."""
+    """工作空间所属的资源不存在时抛出的异常。"""
 
 
 class ConflictError(ProductStoreError):
-    """Raised when a write would violate a product invariant."""
+    """写入将违反应用必须保持的数据约束时抛出的异常。"""
 
 
 class DeletedMemoryError(ConflictError):
-    """Raised when an operation requires an active memory."""
+    """操作要求目标记忆处于有效状态时抛出的异常。"""
 
 
 class ProductStore:
-    """Persist workspaces, conversations, and versioned discrete memories.
+    """持久化工作空间、会话和带版本管理的离散记忆。
 
-    ``workspace_id`` defaults to ``"local"`` throughout the API.  This keeps
-    the first product single-user while making ownership explicit in the
-    schema, so a later service layer does not need a destructive migration.
+    接口中的 workspace_id 默认均为 "local"。这使初版应用保持单用户模式，
+    同时在数据结构中明确归属，便于以后扩展服务层时避免破坏性迁移。
     """
 
     def __init__(self, db_path: str | Path, default_workspace_id: str = "local"):
@@ -89,7 +87,7 @@ class ProductStore:
 
     @property
     def connection(self) -> sqlite3.Connection:
-        """Expose the configured connection for diagnostics and health checks."""
+        """提供已配置的数据库连接，用于诊断和健康检查。"""
 
         return self._connection
 
@@ -104,7 +102,7 @@ class ProductStore:
 
     @contextmanager
     def transaction(self) -> Iterator["ProductStore"]:
-        """Run one atomic unit of work, supporting safely nested store calls."""
+        """在事务中原子执行一组操作，并支持安全嵌套的存储调用。"""
 
         with self._write_lock:
             if self._connection.in_transaction:
@@ -130,7 +128,7 @@ class ProductStore:
             else:
                 self._connection.commit()
 
-    # One-time adoption of SQLite as the memory authority.
+    # 一次性确立 SQLite 为记忆的权威存储。
 
     @_synchronized_read
     def memory_index_initialized(self, workspace_id: str | None = None) -> bool:
@@ -149,7 +147,7 @@ class ProductStore:
     @_synchronized_read
     def has_product_history(self, workspace_id: str | None = None) -> bool:
         workspace_id = self._workspace_id(workspace_id)
-        # Deleted memories and reviewed candidates still establish ownership.
+        # 已删除的记忆和已审核的候选仍能证明工作空间已有归属数据。
         return any(
             self._connection.execute(
                 f"SELECT 1 FROM {table} WHERE workspace_id = ? LIMIT 1",
@@ -158,7 +156,7 @@ class ProductStore:
             for table in ("sessions", "memory_items", "memory_candidates")
         )
 
-    # Workspace and conversation persistence
+    # 工作空间与会话持久化
 
     def create_workspace(self, workspace_id: str, name: str | None = None) -> dict:
         workspace_id = self._required_text(workspace_id, "workspace_id")
@@ -403,7 +401,7 @@ class ProductStore:
             )
         return cursor.rowcount > 0
 
-    # Reviewable memory admission candidates
+    # 等待审核的记忆保存候选
 
     def create_memory_candidate(
         self,
@@ -561,8 +559,8 @@ class ProductStore:
                 )
             if status == "accepted":
                 memory = self.get_memory(memory_id, workspace_id=workspace_id)
-                # The service may upgrade a legacy candidate's cardinality.
-                # Slot and value must still match exactly; the change is audited.
+                # 服务可以升级旧候选的单值或集合类型。
+                # 槽位和值仍须完全匹配，并记录该变更以供审计。
                 resolved_type = self._memory_type(accepted_memory_type or candidate["memory_type"])
                 if (
                     memory["slot"] != candidate["slot"]
@@ -600,7 +598,7 @@ class ProductStore:
             )
         return self.get_memory_candidate(candidate_id, workspace_id=workspace_id)
 
-    # Versioned discrete memory lifecycle
+    # 带版本管理的离散记忆生命周期
 
     def create_memory(
         self,
@@ -722,7 +720,7 @@ class ProductStore:
         provenance: Mapping[str, Any] | None = None,
         workspace_id: str | None = None,
     ) -> dict:
-        """Logically delete a memory while retaining an auditable revision."""
+        """逻辑删除记忆，同时保留可审计的版本记录。"""
 
         memory_id = self._required_text(memory_id, "memory_id")
         workspace_id = self._workspace_id(workspace_id)
@@ -778,10 +776,10 @@ class ProductStore:
         workspace_id: str | None = None,
         require_deleted: bool = True,
     ) -> bool:
-        """Physically remove a memory and all revisions.
+        """物理移除记忆及其全部版本。
 
-        ``require_deleted`` defaults to true so UI or API callers cannot bypass
-        the reviewable logical-delete step by accident.
+        require_deleted 默认为 true，防止界面或接口调用方
+        意外绕过可审核的逻辑删除步骤。
         """
 
         memory_id = self._required_text(memory_id, "memory_id")
@@ -790,9 +788,9 @@ class ProductStore:
             item = self._memory_item(memory_id, workspace_id)
             if require_deleted and item["status"] != "deleted":
                 raise ConflictError("memory must be logically deleted before purge")
-            # A confirmed candidate is part of the memory's admission history.
-            # Physical purge removes that duplicate value before the FK can
-            # merely detach it from the memory item.
+            # 已确认候选属于记忆的保存授权历史。
+            # 物理清除时须先移除候选中重复保存的值，避免外键操作
+            # 仅解除关联，却留下对应的候选内容。
             self._connection.execute(
                 """
                 DELETE FROM memory_candidates
@@ -856,7 +854,7 @@ class ProductStore:
         slot: str | None = None,
         limit: int = 100,
     ) -> list[dict]:
-        """List current revisions; pass ``status=None`` to include deleted rows."""
+        """列出当前版本；传入 status=None 时也包含已删除记录。"""
 
         workspace_id = self._workspace_id(workspace_id)
         limit = self._positive_limit(limit)
@@ -944,7 +942,7 @@ class ProductStore:
             """,
             (memory_id, workspace_id),
         ).fetchall()
-        if not rows:  # Defensive: the FK-backed invariant should make this impossible.
+        if not rows:  # 防御性检查：外键约束正常生效时不应出现此情况。
             raise NotFoundError(f"memory history not found: {item['memory_id']}")
         return [self._decode_memory(row) for row in rows]
 
@@ -956,7 +954,7 @@ class ProductStore:
         include_deleted: bool = True,
         include_history: bool = True,
     ) -> dict:
-        """Return a JSON-serializable, user-owned workspace export."""
+        """返回可序列化为 JSON、归用户所有的工作空间导出数据。"""
 
         workspace = self.get_workspace(workspace_id)
         workspace_id = workspace["workspace_id"]
@@ -1011,7 +1009,7 @@ class ProductStore:
             sort_keys=True,
         )
 
-    # Internal helpers
+    # 内部辅助方法
 
     def _initialize_schema(self) -> None:
         self._connection.executescript(

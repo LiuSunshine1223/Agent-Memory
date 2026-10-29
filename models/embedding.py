@@ -1,4 +1,4 @@
-"""BGE sentence embedding wrapper."""
+"""BGE 句子嵌入模型封装。"""
 
 import torch
 from sentence_transformers import SentenceTransformer

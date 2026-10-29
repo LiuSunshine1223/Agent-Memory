@@ -1,4 +1,4 @@
-"""Assemble models, retrieval indexes and application services at startup."""
+"""在启动时组装模型、检索索引和应用服务。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from config import Config
 from memory.model_extractor import ModelMemoryExtractor
 from knowledge.document_lifecycle import DocumentLifecycle
 from product.application import ProductApplication
-from product.job_fit import JobFitService
 from product.memory_service import ProductMemoryService
 from product_store import ProductStore
 from utils.text_splitter import SentenceBoundaryChunker
@@ -23,7 +22,7 @@ def build_engine(
     embed_model=None,
     llm=None,
 ):
-    """Build the read-only RAG engine, loading models only when requested."""
+    """构建只读 RAG 引擎，仅在需要时加载模型。"""
     from memory.memory_manager import MemoryManager
     from models.embedding import EmbeddingModel
     from models.llm import LLMModel
@@ -37,8 +36,8 @@ def build_engine(
         timeout=Config.LLM_TIMEOUT_SECONDS,
     )
     base_vs = VectorStore(base_db_path or Config.BASE_DB_PATH, Config.VECTOR_DIM)
-    # Knowledge only enters through the document catalog.  Do not silently
-    # seed an empty projection with material absent from the documents page.
+    # 知识资料只能通过文档目录清单进入索引，不能向空索引
+    # 静默加入文档页面未列出的资料。
     memory_vs = VectorStore(memory_db_path or Config.MEMORY_DB_PATH, Config.VECTOR_DIM)
 
     memory_manager = MemoryManager(
@@ -73,7 +72,7 @@ def build_product_runtime(
     workspace_id: str | None = None,
     import_legacy_memories: bool = False,
 ) -> ProductRuntime:
-    """Build the real local runtime once at API or CLI startup."""
+    """在接口服务或命令行启动时，一次性构建真实本地运行环境。"""
 
     if engine_factory is None:
         engine_factory = build_engine
@@ -104,13 +103,13 @@ def build_product_runtime(
             vector_store=manager.base_vs,
         )
         document_sync = None
-        # An existing empty catalog is meaningful: it can be the durable result
-        # of deleting the last document before an interrupted index rebuild.
+        # 已存在的空目录清单具有实际含义：可能是删除最后一份文档后
+        # 索引重建被中断，而删除结果已经持久化。
         if documents.manifest_path.exists():
             document_sync = documents.sync()
             manager.base_vs = document_sync.vector_store
         elif manager.base_vs.total_count:
-            # Preserve old snapshots, but never serve unlisted documents.
+            # 保留旧快照，但不提供目录清单之外的文档。
             raise ValueError(
                 "knowledge index has no document catalog; back up the old "
                 "index, use an empty BASE_DB_PATH and explicitly import "
@@ -122,7 +121,6 @@ def build_product_runtime(
             memory_service=memory,
             engine=engine,
             document_lifecycle=documents,
-            job_fit_service=JobFitService(llm),
             workspace_id=workspace_id,
             fact_extractor=ModelMemoryExtractor(llm),
         )

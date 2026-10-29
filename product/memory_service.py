@@ -1,4 +1,4 @@
-"""Coordinate SQLite product state with the local FAISS memory index."""
+"""协调 SQLite 应用状态与本地 FAISS 记忆索引。"""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ class ProductMemoryOutcome:
 
 
 class ProductMemoryService:
-    """Single entry point for user-authorized memory side effects.
+    """统一处理用户授权的记忆变更操作。
 
-    SQLite is the source of truth for user-visible state and revision history.
-    ``MemoryManager`` keeps a matching FAISS representation for semantic
-    recall.  All product callers go through this class so the two stores stay
-    aligned without exposing write or delete side effects to the LLM.
+    SQLite 是面向用户的状态和版本历史的权威来源。
+    MemoryManager 维护对应的 FAISS 表示，用于语义召回。
+    所有应用调用方均通过本类操作，使两份存储保持一致，
+    同时不向大模型开放直接写入或删除的能力。
     """
 
     def __init__(
@@ -176,7 +176,7 @@ class ProductMemoryService:
         policy_version="consent-gated-v1",
         facts=None,
     ):
-        """Stage new extracted facts without making them recallable."""
+        """暂存新提取的事实为候选，不使其进入长期记忆召回。"""
 
         pending = self.store.list_memory_candidates(
             workspace_id=self.workspace_id,
@@ -234,8 +234,8 @@ class ProductMemoryService:
                     workspace_id=self.workspace_id,
                 )
             except ConflictError:
-                # The partial unique index closes the race between the list
-                # above and insert when two local callers propose the same fact.
+                # 当两个本地调用方提出相同事实时，部分唯一索引可防止
+                # 上方查询与插入操作之间的竞争导致重复候选。
                 concurrent_pending = self.store.list_memory_candidates(
                     workspace_id=self.workspace_id,
                     status="pending",
@@ -261,7 +261,7 @@ class ProductMemoryService:
         )
 
     def confirm_candidate(self, candidate_id):
-        """Promote one pending candidate through the normal SQLite/FAISS path."""
+        """通过常规 SQLite/FAISS 写入流程，将一条待确认候选转为正式记忆。"""
 
         write_attempted = False
         try:
@@ -380,7 +380,7 @@ class ProductMemoryService:
         return ProductMemoryOutcome("updated", updated, vector.action)
 
     def delete(self, memory_id):
-        """Remove from long-term retrieval; session messages remain unchanged."""
+        """从长期记忆检索中移除记录，会话消息保持不变。"""
         vector_attempted = False
         try:
             with self.store.transaction():
@@ -407,8 +407,8 @@ class ProductMemoryService:
         if current["status"] != "deleted":
             raise ConflictError("memory must be logically deleted before purge")
 
-        # Validation happens before the derived FAISS copy is removed.  A
-        # rejected purge must not make an active SQLite memory unrecallable.
+        # 移除派生的 FAISS 记录前先完成校验。永久清除被拒绝时，
+        # 不能导致 SQLite 中仍有效的记忆无法召回。
         self.manager.purge_memory(memory_id)
         return self.store.purge_memory(
             memory_id,
@@ -482,11 +482,11 @@ class ProductMemoryService:
         ) or "无。"
 
     def initialize_index(self, *, import_legacy=False):
-        """Adopt SQLite once; later starts only repair its derived index.
+        """一次性确立 SQLite 为权威来源，后续启动只修复其派生索引。
 
-        Legacy vector-only data needs explicit import into a new workspace.
-        An initialized or previously used product workspace must never adopt
-        orphan vectors as new facts, including after all memories are purged.
+        旧版仅存于向量库的数据，需要显式导入新的工作空间。
+        已初始化或曾使用过的工作空间不得把孤立向量重新当成新事实，
+        即使其中全部记忆都已被永久清除。
         """
 
         imported = 0
@@ -508,16 +508,15 @@ class ProductMemoryService:
                         )
                     imported = self._import_legacy_active_memories()
             self.store.mark_memory_index_initialized(self.workspace_id)
-        # The marker and any imported facts are durable before projection
-        # repair. If repair fails, the next start retries from SQLite only.
+        # 修复索引投影前，初始化标记和已导入事实已持久化。
+        # 若修复失败，下次启动只依据 SQLite 重试修复。
         return imported, self.reconcile_index()
 
     def reconcile_index(self):
-        """Repair the active FAISS projection from SQLite's current state.
+        """依据 SQLite 当前状态修复有效记忆的 FAISS 索引投影。
 
-        SQLite remains the source of truth; stale vector-only records are
-        physically removed and missing or mismatched active records are
-        recreated with their stable product ``memory_id``.
+        SQLite 始终是权威来源；物理移除仅存于向量库的过期记录，
+        对缺失或不匹配的有效记录，使用稳定的应用 memory_id 重建。
         """
 
         sql_records = self.list(limit=1_000_000)
@@ -578,7 +577,7 @@ class ProductMemoryService:
         }
 
     def _import_legacy_active_memories(self):
-        """Import within initialize_index's explicit one-time transaction."""
+        """在 initialize_index 显式开启的一次性事务中导入数据。"""
 
         existing = self.list(limit=1_000_000)
         existing_ids = {item["memory_id"] for item in existing}
@@ -592,8 +591,8 @@ class ProductMemoryService:
             if item["memory_type"] == "scalar"
         }
         imported = 0
-        # The snapshot is already in memory. Do not silently import just a
-        # page and let reconciliation discard the remaining source records.
+        # 完整快照已在内存中。不能只静默导入一页数据，
+        # 否则后续同步修复会丢弃剩余来源记录。
         for metadata in self.manager.list_active_memory_records(limit=None):
             memory_id = metadata.get("memory_id") or str(uuid4())
             slot = metadata.get("slot")
@@ -624,16 +623,16 @@ class ProductMemoryService:
                 if cardinality == "scalar":
                     active_scalar_slots.add(slot)
             except (ValueError, ConflictError) as exc:
-                # Do not mark a partial import complete or discard source data.
+                # 不将部分导入标记为完成，也不丢弃来源数据。
                 raise ValueError(f"invalid legacy memory {memory_id}: {exc}") from exc
         return imported
 
     def _validate_candidate_snapshot(self, candidate):
-        """Reject a scalar candidate when its target slot changed meanwhile.
+        """若目标槽位在候选提出后发生变化，则拒绝该单值候选。
 
-        Candidate review is optimistic: the proposal records the current
-        scalar memory id/version, then confirmation verifies that snapshot.
-        An already-identical value is safe to accept as an idempotent no-op.
+        候选审核采用乐观并发检查：提出时记录当前单值记忆的标识和版本，
+        确认时再校验该快照。若当前值已经相同，可安全接受，
+        视为无需重复修改的幂等操作。
         """
 
         if candidate["memory_type"] != "scalar" or candidate["slot"] in self.manager.extractor.COLLECTION_SLOTS:
@@ -680,13 +679,13 @@ class ProductMemoryService:
             )
 
     def _best_effort_reconcile(self):
-        """Repair a possibly mutated projection without masking the failure."""
+        """修复可能已发生变更的索引投影，同时保留原始失败信息。"""
 
         try:
             self.reconcile_index()
         except Exception:
-            # Startup reconciliation remains the final repair path if the
-            # derived index itself is temporarily unavailable.
+            # 若派生索引暂时不可用，启动时的同步修复
+            # 仍作为最终恢复途径。
             pass
 
     @staticmethod

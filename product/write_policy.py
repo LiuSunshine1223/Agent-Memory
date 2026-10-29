@@ -1,4 +1,4 @@
-"""Deterministic admission policy for product-level long-term memory writes."""
+"""应用层长期记忆写入的确定性授权策略。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from memory.extractor import DiscreteMemoryExtractor
 
 @dataclass(frozen=True)
 class WritePolicyDecision:
-    """Explain whether extracted facts may enter active long-term memory."""
+    """说明提取出的事实是否可以进入有效长期记忆。"""
 
     action: str
     reason_code: str
@@ -23,11 +23,10 @@ class WritePolicyDecision:
 
 
 class ConsentAwareWritePolicy:
-    """Commit only explicit save requests; otherwise stage facts for review.
+    """仅对明确的保存请求直接写入；其他事实先作为候选等待确认。
 
-    The extractor decides *what* looks like a durable fact.  This policy makes
-    the separate admission decision: explicit opt-outs are ignored, explicit
-    save requests are committed, and ordinary assertions become candidates.
+    提取器判断哪些内容像可长期保存的事实；本策略独立判断是否允许保存：
+    明确拒绝保存时忽略写入，明确要求保存时直接提交，普通陈述生成候选。
     """
 
     VERSION = "consent-gated-v3"

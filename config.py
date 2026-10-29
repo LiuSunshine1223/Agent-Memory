@@ -1,4 +1,4 @@
-"""Environment-backed configuration for the local-first DiscreteMemory product."""
+"""从环境变量读取配置，供优先在本地运行的 DiscreteMemory 应用使用。"""
 
 import os
 from pathlib import Path, PureWindowsPath
@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 def _local_path(value):
-    """Accept Windows drive paths when this checkout runs under WSL."""
+    """在 WSL 中运行本项目时，兼容 Windows 盘符路径。"""
     raw = str(value).strip()
     windows_path = PureWindowsPath(raw)
     if os.name != "nt" and windows_path.is_absolute():
@@ -23,7 +23,7 @@ def _local_path(value):
 
 
 def _resolve_project_path(value, project_root=None):
-    """Keep data/state paths stable across IDE, CLI and WSL working dirs."""
+    """使数据和状态路径不受 IDE、命令行及 WSL 当前工作目录的影响。"""
     raw = str(value or "").strip()
     if not raw:
         raise ValueError("project path must not be empty")
@@ -34,12 +34,11 @@ def _resolve_project_path(value, project_root=None):
 
 
 def _resolve_model_reference(value, project_root=None):
-    """Resolve local model paths without rewriting Hugging Face model IDs.
+    """解析本地模型路径，同时保留 Hugging Face 模型标识。
 
-    PyCharm, ``uvicorn`` and WSL shells do not necessarily share the same
-    current working directory.  Explicit/available local paths are therefore
-    anchored to the repository, while references such as
-    ``BAAI/bge-small-zh-v1.5`` remain valid remote model identifiers.
+    PyCharm、uvicorn 和 WSL 终端的当前工作目录可能不同。因此，明确指定或
+    确实存在的本地路径以项目根目录为基准解析；BAAI/bge-small-zh-v1.5
+    这类名称仍作为有效的远程模型标识使用。
     """
 
     raw = str(value or "").strip()
@@ -56,14 +55,14 @@ def _resolve_model_reference(value, project_root=None):
 
 
 def _load_project_environment():
-    """Load the project .env and an optional explicitly configured env file."""
+    """加载项目 .env，以及可选的显式指定环境配置文件。"""
     load_dotenv(PROJECT_ROOT / ".env")
     external = os.getenv("DISCRETE_MEMORY_ENV_FILE", "").strip()
     if external:
         path = Path(_resolve_project_path(external))
         if not path.is_file():
             raise FileNotFoundError(f"external environment file does not exist: {path}")
-        # Explicit process environment values retain their normal precedence.
+        # 显式设置的进程环境变量仍按原有规则优先使用。
         load_dotenv(path)
 
 
@@ -93,7 +92,7 @@ class Config:
     API_PORT = int(os.getenv("API_PORT", "8000"))
 
     BASE_DB_PATH = _resolve_project_path(
-        os.getenv("BASE_DB_PATH", "./storage/career_knowledge")
+        os.getenv("BASE_DB_PATH", "./storage/knowledge_index")
     )
     MEMORY_DB_PATH = _resolve_project_path(
         os.getenv("MEMORY_DB_PATH", "./storage/user_memory")

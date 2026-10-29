@@ -1,1 +1,1 @@
-"""Local-first product services built on the discrete-memory core."""
+"""基于离散记忆核心、优先在本地运行的应用服务。"""

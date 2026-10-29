@@ -290,7 +290,7 @@
     .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
     .full-span { grid-column: 1 / -1; }
 
-    /* Chat */
+    /* 对话 */
     .chat-layout {
       min-height: 650px;
       display: grid;
@@ -375,7 +375,7 @@
     .composer textarea { min-height: 46px; max-height: 150px; }
     .composer-note { margin: 7px 2px 0; color: var(--muted); font-size: 10px; }
 
-    /* Memory */
+    /* 记忆 */
     .memory-top-grid { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.4fr); gap: 18px; }
     .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .stat { padding: 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 11px; }
@@ -415,34 +415,14 @@
     .badge.active { color: var(--success); background: var(--success-soft); }
     .badge.deleted { color: var(--danger); background: var(--danger-soft); }
     .badge.pending { color: var(--warning); background: var(--warning-soft); }
-    .badge.high { color: var(--danger); background: var(--danger-soft); }
-    .badge.medium { color: var(--warning); background: var(--warning-soft); }
-    .badge.low { color: var(--success); background: var(--success-soft); }
     .badge.neutral { color: #52616d; background: #edf1f3; }
 
-    /* Documents and job fit */
+    /* 资料 */
     .document-grid { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.3fr); gap: 18px; }
     .document-list { display: grid; gap: 10px; }
     .document-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 15px; border: 1px solid var(--line); border-radius: 11px; }
     .document-card h3 { margin: 0 0 5px; font-size: 14px; }
     .document-card p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-    .job-layout { display: grid; grid-template-columns: minmax(330px, 0.82fr) minmax(0, 1.18fr); gap: 18px; align-items: start; }
-    .source-picker { display: grid; gap: 7px; max-height: 220px; overflow-y: auto; padding: 9px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
-    .source-option { display: flex; align-items: flex-start; gap: 9px; padding: 8px; background: #fff; border: 1px solid #e2e7ea; border-radius: 8px; }
-    .source-option input { margin-top: 2px; accent-color: var(--primary); }
-    .source-option strong { display: block; font-size: 12px; }
-    .source-option span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
-    .result-stack { display: grid; gap: 14px; }
-    .result-section { padding: 15px; border: 1px solid var(--line); border-radius: 11px; }
-    .result-section h3 { margin: 0 0 11px; font-size: 14px; }
-    .result-item { padding: 11px 0; border-top: 1px solid #e8ecef; }
-    .result-item:first-of-type { padding-top: 0; border-top: 0; }
-    .result-item:last-child { padding-bottom: 0; }
-    .result-item strong { display: block; font-size: 13px; }
-    .result-item p { margin: 5px 0 0; color: #53616c; font-size: 12px; line-height: 1.6; }
-    .result-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-    .quote { padding-left: 10px; border-left: 3px solid #c8dbe6; color: #45535e; }
-
     .empty-state { display: grid; place-items: center; min-height: 150px; padding: 24px; color: var(--muted); text-align: center; }
     .empty-state strong { display: block; margin-bottom: 5px; color: #3e4d58; font-size: 14px; }
     .empty-state p { max-width: 450px; margin: 0; font-size: 12px; line-height: 1.6; }
@@ -475,7 +455,7 @@
       .nav-button { justify-content: center; padding: 10px; }
       main { padding: 24px 22px 38px; }
       .chat-layout { grid-template-columns: 220px minmax(0, 1fr); }
-      .memory-top-grid, .document-grid, .job-layout { grid-template-columns: 1fr; }
+      .memory-top-grid, .document-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 700px) {
@@ -513,7 +493,7 @@
       <div class="brand-mark" aria-hidden="true">DM</div>
       <div class="brand-copy">
         <strong>DiscreteMemory</strong>
-        <span>可治理的本地长期记忆系统</span>
+        <span>支持长期记忆的对话系统</span>
       </div>
     </div>
     <div id="connection" class="connection" aria-live="polite">
@@ -542,9 +522,6 @@
         </button>
         <button class="nav-button" type="button" data-view="documents">
           <span class="nav-index">03</span><span>知识源（RAG）</span>
-        </button>
-        <button class="nav-button" type="button" data-view="job-fit">
-          <span class="nav-index">04</span><span>示例：证据化岗位匹配</span>
         </button>
       </nav>
       <div class="scope-card">
@@ -653,7 +630,7 @@
               </div>
               <div class="field">
                 <label for="documentTitle">显示标题（可选）</label>
-                <input id="documentTitle" class="input" name="title" placeholder="个人简历">
+                <input id="documentTitle" class="input" name="title" placeholder="项目说明">
               </div>
               <div class="form-actions full-span">
                 <button class="button" type="submit">导入并建立索引</button>
@@ -667,38 +644,6 @@
         </div>
       </section>
 
-      <section id="view-job-fit" class="view" data-view-panel="job-fit" hidden>
-        <div class="view-heading">
-          <div>
-            <p class="eyebrow">Job Fit Workflow</p>
-            <h1>证据化岗位匹配</h1>
-            <p>这是一个下游示例：结合所选资料和有效长期记忆，输出可核验的匹配项、缺口与准备计划。</p>
-          </div>
-        </div>
-        <div class="job-layout">
-          <section class="panel">
-            <div class="panel-header"><div><h2>分析输入</h2><p>每次只执行一次有边界的分析，不自动写入记忆</p></div></div>
-            <form id="jobFitForm" class="panel-body" style="display:grid;gap:15px">
-              <div class="field">
-                <label for="jdText">岗位 JD</label>
-                <textarea id="jdText" class="textarea" style="min-height:230px" maxlength="30000" placeholder="粘贴岗位职责、任职要求和加分项……" required></textarea>
-              </div>
-              <div class="field">
-                <span>参与分析的资料</span>
-                <div id="jobDocumentList" class="source-picker"></div>
-                <small>不选择时由后端使用默认资料范围；长期记忆仅作为只读证据。</small>
-              </div>
-              <div class="form-actions">
-                <button id="jobFitButton" class="button" type="submit">开始岗位匹配</button>
-              </div>
-            </form>
-          </section>
-          <section class="panel">
-            <div class="panel-header"><div><h2>分析结果</h2><p>证据必须来自已导入资料或有效记忆</p></div></div>
-            <div id="jobFitResult" class="panel-body"></div>
-          </section>
-        </div>
-      </section>
     </main>
   </div>
 
@@ -756,7 +701,6 @@
       memoryHistoryEpoch: 0,
       storedMemoriesRequestVersion: 0,
       documents: [],
-      selectedDocumentIds: new Set(),
       purgeMemoryId: null,
     };
 
@@ -886,7 +830,7 @@
         else button.removeAttribute("aria-current");
       });
       if (name === "memories") loadMemories();
-      if (name === "documents" || name === "job-fit") loadDocuments();
+      if (name === "documents") loadDocuments();
     }
 
     async function loadSessions(preferredId = null) {
@@ -1558,10 +1502,7 @@
       try {
         const payload = await api("/v1/documents");
         state.documents = listFrom(payload, ["documents", "items"]);
-        const validIds = new Set(state.documents.map((item) => item.document_id));
-        state.selectedDocumentIds = new Set([...state.selectedDocumentIds].filter((id) => validIds.has(id)));
         renderDocuments();
-        renderJobDocumentPicker();
       } catch (error) { showError(error, "无法加载资料目录"); }
     }
 
@@ -1570,7 +1511,7 @@
       byId("documentCount").textContent = `${state.documents.length} 份资料`;
       list.replaceChildren();
       if (!state.documents.length) {
-        list.append(emptyNode("还没有导入资料", "先导入简历、项目说明或研究笔记。"));
+        list.append(emptyNode("还没有导入资料", "先导入项目说明、学习资料或研究笔记。"));
         return;
       }
       for (const item of state.documents) {
@@ -1594,125 +1535,12 @@
       }
     }
 
-    function renderJobDocumentPicker() {
-      const list = byId("jobDocumentList");
-      list.replaceChildren();
-      if (!state.documents.length) {
-        list.append(emptyNode("暂无可选资料", "请先在资料工作区导入简历或项目文档。"));
-        return;
-      }
-      for (const item of state.documents) {
-        const label = document.createElement("label");
-        const checkbox = document.createElement("input");
-        const copy = document.createElement("span");
-        const title = document.createElement("strong");
-        const source = document.createElement("span");
-        label.className = "source-option";
-        checkbox.type = "checkbox";
-        checkbox.value = item.document_id;
-        checkbox.checked = state.selectedDocumentIds.has(item.document_id);
-        checkbox.dataset.jobDocument = "true";
-        title.textContent = item.title || item.source_id;
-        source.textContent = item.source_id || item.document_id;
-        copy.append(title, source);
-        label.append(checkbox, copy);
-        list.append(label);
-      }
-    }
-
-    function renderJobFitResult(payload) {
-      const root = byId("jobFitResult");
-      root.replaceChildren();
-      const result = unwrap(payload);
-      if (result.ok === false) {
-        const error = result.error || {};
-        root.append(emptyNode("分析未完成", `${error.message || "模型输出未通过校验"}${error.detail ? `：${error.detail}` : ""}`));
-        if (result.trace) root.append(traceDetails(result.trace));
-        return;
-      }
-      const analysis = result.analysis || result;
-      const sourceTitles = new Map(
-        (result.sources || []).map((source) => [
-          source.source_id,
-          source.title || source.catalog_source_id || source.source_id,
-        ])
-      );
-      for (const memory of state.memories) {
-        sourceTitles.set(`memory:${memory.memory_id}`, `长期记忆：${memory.slot}`);
-      }
-      const groups = [
-        ["匹配项", analysis.matches || [], renderMatch],
-        ["能力缺口", analysis.gaps || [], renderGap],
-        ["准备计划", analysis.preparation_plan || [], renderPlan],
-        ["证据", analysis.evidence || [], (item) => renderEvidence(item, sourceTitles)],
-      ];
-      const stack = document.createElement("div");
-      stack.className = "result-stack";
-      for (const [title, items, renderer] of groups) {
-        const section = document.createElement("section");
-        const heading = document.createElement("h3");
-        section.className = "result-section";
-        heading.textContent = `${title} · ${items.length}`;
-        section.append(heading);
-        if (!items.length) {
-          const p = document.createElement("p");
-          p.style.cssText = "margin:0;color:var(--muted);font-size:12px";
-          p.textContent = "暂无内容";
-          section.append(p);
-        } else items.forEach((item) => section.append(renderer(item)));
-        stack.append(section);
-      }
-      if (result.trace) stack.append(traceDetails(result.trace));
-      root.append(stack);
-    }
-
-    function resultItem(title, detail, tags = [], className = "") {
-      const item = document.createElement("div");
-      const strong = document.createElement("strong");
-      const p = document.createElement("p");
-      item.className = `result-item ${className}`.trim();
-      strong.textContent = title || "未命名项目";
-      p.textContent = detail || "";
-      item.append(strong, p);
-      if (tags.length) {
-        const tagRoot = document.createElement("div");
-        tagRoot.className = "result-tags";
-        for (const tag of tags) {
-          const badge = document.createElement("span");
-          badge.className = "badge neutral";
-          badge.textContent = tag;
-          tagRoot.append(badge);
-        }
-        item.append(tagRoot);
-      }
-      return item;
-    }
-
-    function renderMatch(item) { return resultItem(item.requirement, item.assessment, item.evidence_ids || []); }
-    function renderGap(item) {
-      const node = resultItem(item.requirement, item.reason, [item.gap_id].filter(Boolean));
-      const badge = document.createElement("span");
-      badge.className = `badge ${item.priority || "neutral"}`;
-      badge.textContent = item.priority || "未分级";
-      node.querySelector("strong").append(" ", badge);
-      return node;
-    }
-    function renderPlan(item) {
-      return resultItem(item.action, `验收标准：${item.success_criteria || "未提供"}`, item.gap_ids || []);
-    }
-    function renderEvidence(item, sourceTitles) {
-      const source = sourceTitles.get(item.source_id) || item.source_id || "未知来源";
-      return resultItem(`${item.evidence_id || "证据"} · ${source}`, item.quote, [], "quote");
-    }
-
     async function initialize() {
       setConnection("pending");
       renderChat();
       renderMemories();
       renderMemoryCandidates();
       renderDocuments();
-      renderJobDocumentPicker();
-      renderJobFitResult({ analysis: { matches: [], gaps: [], preparation_plan: [], evidence: [] } });
       await Promise.all([loadSessions(), loadMemories(), loadDocuments()]);
     }
 
@@ -1851,35 +1679,6 @@
       } catch (error) { showError(error, "删除资料失败"); }
       finally { if (button.isConnected) button.disabled = false; }
     });
-    byId("jobDocumentList").addEventListener("change", (event) => {
-      const checkbox = event.target.closest("[data-job-document]");
-      if (!checkbox) return;
-      if (checkbox.checked) state.selectedDocumentIds.add(checkbox.value);
-      else state.selectedDocumentIds.delete(checkbox.value);
-    });
-    byId("jobFitForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const jdText = byId("jdText").value.trim();
-      if (!jdText) return;
-      const body = { jd_text: jdText };
-      if (state.selectedDocumentIds.size) body.document_ids = [...state.selectedDocumentIds];
-      const button = byId("jobFitButton");
-      button.disabled = true;
-      button.textContent = "分析中…";
-      try {
-        const result = await api("/v1/job-fit", { method: "POST", body });
-        renderJobFitResult(result);
-        if (unwrap(result).ok === false) showError(new Error(unwrap(result).error?.message || "岗位分析未完成"), "岗位分析未完成");
-        else notify("岗位匹配分析已完成");
-      } catch (error) {
-        renderJobFitResult({ ok: false, error: { message: describeError(error) } });
-        showError(error, "岗位匹配请求失败");
-      } finally {
-        button.disabled = false;
-        button.textContent = "开始岗位匹配";
-      }
-    });
-
     initialize();
   </script>
 </body>

@@ -1,7 +1,7 @@
 """DiscreteMemory 离线评测入口（在项目根目录运行）。
 
     python eval/run_eval.py
-        真实嵌入模型 + 真实 LLM，跑全部五类评测
+        真实嵌入模型 + 真实 LLM，跑全部四类评测
 
     python eval/run_eval.py --suites extraction,consent
         只跑不需要模型的部分，几秒钟完成
@@ -43,10 +43,10 @@ for _path in (str(PROJECT_ROOT), str(EVAL_DIR)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-EVALUATION_PROTOCOL = "discretememory-eval-1.3"
+EVALUATION_PROTOCOL = "discretememory-eval-1.4"
 
 def _local_path(value):
-    """Accept Windows drive paths when the runner executes in WSL."""
+    """评测脚本在 WSL 中执行时，兼容 Windows 盘符路径。"""
     value = str(value)
     if os.name != "nt" and len(value) >= 3 and value[1] == ":" and value[2] in "/\\":
         mount = Path("/mnt") / value[0].lower()
@@ -73,14 +73,14 @@ def _now():
         return datetime.now(timezone.utc)
 
 def _component(value):
-    """One directory name, including on Windows; reject escaping paths."""
+    """确保名称只表示一个目录（包括 Windows 环境），拒绝越界路径。"""
     value = str(value)
     if not value or value in {".", ".."} or any(c in value for c in "/\\:") or Path(value).is_absolute():
         raise ValueError(f"expected one directory name: {value!r}")
     return value
 
 def _create_result_directory(root: Path, name: str, *, automatic: bool) -> Path:
-    """Reserve one output directory without overwriting an earlier run."""
+    """创建本次输出目录，不覆盖之前的运行结果。"""
     name = _component(name)
     root.mkdir(parents=True, exist_ok=True)
     number = 1
@@ -128,31 +128,28 @@ def implementation_metadata(config):
         "runtime_config": settings, "dependencies": versions,
     }
 
-ALL_SUITES = ["extraction", "consent", "lifecycle", "jobfit", "latency"]
+ALL_SUITES = ["extraction", "consent", "lifecycle", "latency"]
 LANG_LABEL = {"zh": "中文", "en": "英文", "mix": "中英混合"}
 
 SUITE_LABELS = {
     "extraction": "规则抽取与槽位识别",
     "consent": "规则写入准入",
     "lifecycle": "记忆生命周期与召回",
-    "jobfit": "岗位匹配",
     "latency": "聊天延迟",
 }
 
 
-def _default_run_name(suites, embedder_kind, llm_kind, *, jobfit_limit, latency_repeats):
-    """Describe effective suites and models actually used by those suites."""
+def _default_run_name(suites, embedder_kind, llm_kind, *, latency_repeats):
+    """描述实际执行的评测套件，以及这些套件实际使用的模型。"""
     scope = "全部评测" if set(suites) == set(ALL_SUITES) else "+".join(
         SUITE_LABELS[suite] for suite in suites
     )
     modes = []
     if any(suite in suites for suite in ("lifecycle", "latency")):
         modes.append({"real": "真实Embedding", "hash": "模拟Embedding"}[embedder_kind])
-    if any(suite in suites for suite in ("jobfit", "latency")):
+    if any(suite in suites for suite in ("latency",)):
         modes.append({"real": "真实LLM", "stub": "模拟LLM"}[llm_kind])
     parts = [scope, "+".join(modes) if modes else "规则评测"]
-    if "jobfit" in suites and jobfit_limit is not None:
-        parts.append(f"岗位每语种最多{jobfit_limit}条")
     if "latency" in suites:
         parts.append(f"延迟{latency_repeats}轮")
     parts.append(_now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -284,11 +281,6 @@ class Models:
         from fakes import StubChatLLM
         return StubChatLLM()
 
-    def jobfit_llm(self, skills):
-        if self.llm_kind == "real":
-            return self._real_llm()
-        from fakes import OracleJobFitLLM
-        return OracleJobFitLLM(skills)
 
     def _real_llm(self):
         if self._llm is None:
@@ -308,7 +300,7 @@ class Models:
         )
         llm = {
             "real": str(getattr(self.config, "LLM_MODEL", "?")),
-            "stub": "替身（对话固定回答 / 求职匹配标准答案）",
+            "stub": "替身（对话固定回答）",
             "none": "不使用",
         }[self.llm_kind]
         return {"embedder": embed, "llm": llm}
@@ -731,85 +723,7 @@ def run_lifecycle(cases_dir: Path, models: Models):
 
 
 # ---------------------------------------------------------------------------
-# 4. 求职匹配
-# ---------------------------------------------------------------------------
-
-def classify_skill(skill, analysis):
-    from fakes import skill_pattern
-
-    pattern = skill_pattern(skill)
-    in_match = any(pattern.search(m["requirement"]) for m in analysis["matches"])
-    in_gap = any(pattern.search(g["requirement"]) for g in analysis["gaps"])
-    if not in_match and not in_gap:  # requirement 没写技能名时，退而看说明文字
-        in_match = any(pattern.search(m["assessment"]) for m in analysis["matches"])
-        in_gap = any(pattern.search(g["reason"]) for g in analysis["gaps"])
-    if in_match and in_gap:
-        return "both"
-    if in_match:
-        return "match"
-    if in_gap:
-        return "gap"
-    return "missing"
-
-
-def run_jobfit(cases_dir: Path, models: Models, limit=None):
-    from generate_cases import SKILLS
-    from product.job_fit import JobFitService
-
-    cases = load_jsonl(cases_dir / "jobfit.jsonl")
-    if limit:
-        per_lang = defaultdict(int)
-        selected = []
-        for case in cases:
-            if per_lang[case["lang"]] < limit:
-                selected.append(case)
-                per_lang[case["lang"]] += 1
-        cases = selected
-
-    service = JobFitService(models.jobfit_llm(SKILLS))
-    details = []
-    for index, case in enumerate(cases, start=1):
-        started = time.perf_counter()
-        result = service.analyze(case["jd_text"], documents=[case["resume"]])
-        elapsed = (time.perf_counter() - started) * 1000
-        row = {
-            "id": case["id"], "lang": case["lang"], "latency_ms": elapsed, "ok": result.ok,
-            "expected_matches": case["expected_matches"], "expected_gaps": case["expected_gaps"],
-        }
-        if result.ok:
-            row["labels"] = {skill: classify_skill(skill, result.analysis) for skill in case["jd_skills"]}
-            row["analysis"] = result.analysis
-        else:
-            row["error_code"] = result.error.code
-            row["error_detail"] = result.error.detail
-        details.append(row)
-        print(f"  求职匹配 {index}/{len(cases)} {'通过' if result.ok else result.error.code} {elapsed / 1000:.1f}s", flush=True)
-
-    summary = {}
-    for lang in ("zh", "en", None):
-        rows = [d for d in details if lang is None or d["lang"] == lang]
-        ok_rows = [d for d in rows if d["ok"]]
-        exp_match = sum(len(d["expected_matches"]) for d in ok_rows)
-        exp_gap = sum(len(d["expected_gaps"]) for d in ok_rows)
-        hit_match = sum(d["labels"][s] == "match" for d in ok_rows for s in d["expected_matches"])
-        hit_gap = sum(d["labels"][s] == "gap" for d in ok_rows for s in d["expected_gaps"])
-        false_match = sum(d["labels"][s] in ("match", "both") for d in ok_rows for s in d["expected_gaps"])
-        latencies = [d["latency_ms"] for d in rows]
-        summary[lang or "all"] = {
-            "n": len(rows),
-            "ok_rate": ratio(len(ok_rows), len(rows)),
-            "match_recall": ratio(hit_match, exp_match),
-            "gap_recall": ratio(hit_gap, exp_gap),
-            "false_match_rate": ratio(false_match, exp_gap),
-            "errors": dict(Counter(d["error_code"] for d in rows if not d["ok"])),
-            "latency_p50": percentile(latencies, 50),
-            "latency_p95": percentile(latencies, 95),
-        }
-    return summary, {"jobfit": details}
-
-
-# ---------------------------------------------------------------------------
-# 5. 端到端延迟
+# 4. 端到端延迟
 # ---------------------------------------------------------------------------
 
 CAREER_NOTES = """# 求职准备笔记（虚构示例）
@@ -833,7 +747,7 @@ def run_latency(cases_dir: Path, models: Models, repeats: int):
     config = models.config
     messages = load_jsonl(cases_dir / "latency_messages.jsonl")
     details = []
-    # Each repetition uses a new runtime/session with the same fixture sequence.
+    # 每次重复均新建运行环境和会话，并使用相同的测试数据序列。
     with tempfile.TemporaryDirectory(prefix="dm_latency_", dir=TEMP_ROOT) as directory:
         root = Path(directory)
         for repeat in range(repeats):
@@ -918,12 +832,6 @@ def headline(summary: dict, models: Models) -> dict:
                 item = life["by_check"].get(f"{name}.{lang}")
                 if item:
                     h[f"{label}·{lang}"] = item["pass_rate"]
-    job = summary.get("jobfit")
-    if job and models.llm_kind == "real":
-        for lang in ("zh", "en"):
-            h[f"求职匹配输出合法率·{lang}"] = job[lang]["ok_rate"]
-            h[f"求职匹配虚假匹配率·{lang}"] = job[lang]["false_match_rate"]
-            h[f"求职匹配缺口召回·{lang}"] = job[lang]["gap_recall"]
     lat = summary.get("latency")
     if lat and models.llm_kind == "real":
         h["单轮延迟中位数(ms)"] = lat["all"]["p50"]
@@ -973,15 +881,6 @@ def failure_samples(details: dict, limit: int = 5, skip_semantic: bool = False) 
                 shown += 1
             if shown >= limit * 2:
                 break
-    job = details.get("jobfit")
-    if job:
-        lines.append("\n### 求职匹配失败样例")
-        for d in [d for d in job if not d["ok"]][:limit]:
-            lines.append(f"- {d['id']} [{LANG_LABEL[d['lang']]}] {d['error_code']}：{str(d.get('error_detail'))[:160]}")
-        for d in [d for d in job if d["ok"] and any(
-                d["labels"][s] in ("match", "both") for s in d["expected_gaps"])][:limit]:
-            wrong = [s for s in d["expected_gaps"] if d["labels"][s] in ("match", "both")]
-            lines.append(f"- {d['id']} [{LANG_LABEL[d['lang']]}] 虚假匹配：{', '.join(wrong)}")
     return lines
 
 
@@ -999,7 +898,7 @@ def render_report(summary: dict, details: dict, meta: dict, models: Models) -> s
         ["输出目录", meta["output_dir"]],
     ]))
     if models.embedder_kind == "hash" or models.llm_kind == "stub":
-        out += ["", "> ⚠️ 本次使用了替身模型。依赖模型的指标（语义检索命中、求职匹配、延迟）"
+        out += ["", "> ⚠️ 本次使用了替身模型。依赖模型的指标（语义检索命中、延迟）"
                 "只用于验证评测脚本，不代表系统表现，已在表中标出或省略。"]
 
     out += ["", "> 固定用例由公开模板生成。heldout 是公开的模板诊断保留集，不能当作未见过的盲测集或真实用户分布。"]
@@ -1077,23 +976,9 @@ def render_report(summary: dict, details: dict, meta: dict, models: Models) -> s
         if life["errors"]:
             out += ["", f"有 {life['errors']} 个场景运行时报错，见失败样例。"]
 
-    job = summary.get("jobfit")
-    if job:
-        out += ["", "## 4. 求职匹配", ""]
-        if models.llm_kind != "real":
-            out.append("> 本次使用“标准答案”替身，数字只验证打分逻辑（理应全部为 100% / 0%）。\n")
-        out.append("技能误匹配率（原虚假匹配率）= 在通过 schema/证据校验的输出中，未列入简历技能集合的要求被判为匹配。"
-                   "匹配与缺口召回也条件于合法输出，必须与输出合法率和样本数一起解读；技能词启发式不能替代真实招聘评估。\n")
-        out.append(md_table(["语言", "用例数", "输出合法率", "匹配召回", "缺口召回", "虚假匹配率", "延迟中位数", "延迟P95", "错误类型"], [
-            [LANG_LABEL.get(lang, "全部"), s["n"], pct(s["ok_rate"]), pct(s["match_recall"]), pct(s["gap_recall"]),
-             pct(s["false_match_rate"]), ms(s["latency_p50"]), ms(s["latency_p95"]),
-             ", ".join(f"{k}×{v}" for k, v in s["errors"].items()) or "—"]
-            for lang, s in (("zh", job["zh"]), ("en", job["en"]), ("all", job["all"]))
-        ]))
-
     lat = summary.get("latency")
     if lat:
-        out += ["", "## 5. 单轮对话延迟", ""]
+        out += ["", "## 4. 单轮对话延迟", ""]
         if models.llm_kind != "real":
             out.append("> 替身模式：只反映检索与存储的开销，不含真实模型推理时间。\n")
         out.append("每轮重新创建隔离运行时与会话；计时为 ProductApplication.chat 调用，排除启动/模型加载。"
@@ -1161,7 +1046,7 @@ def compare(dir_a: Path, dir_b: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="DiscreteMemory 离线评测")
     parser.add_argument("--suites", default=",".join(ALL_SUITES),
-                        help="逗号分隔：extraction,consent,lifecycle,jobfit,latency")
+                        help="逗号分隔：extraction,consent,lifecycle,latency")
     parser.add_argument("--embedder", choices=["real", "hash"], default="real")
     parser.add_argument("--llm", choices=["real", "stub", "none"], default="real")
     parser.add_argument("--name", default=None,
@@ -1169,7 +1054,6 @@ def main() -> None:
     parser.add_argument("--cases", type=Path, default=EVAL_DIR / "cases")
     parser.add_argument("--out", type=Path, default=RESULTS_ROOT,
                         help="结果根目录；默认项目 eval/results")
-    parser.add_argument("--jobfit-limit", type=int, default=None, help="每种语言最多跑几条求职匹配")
     parser.add_argument("--latency-repeats", type=int, default=3)
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("A", "B"))
     args = parser.parse_args()
@@ -1193,24 +1077,22 @@ def main() -> None:
         parser.error("至少指定一个评测类别")
     if len(suites) != len(set(suites)):
         parser.error("评测类别不能重复")
-    if args.jobfit_limit is not None and args.jobfit_limit <= 0:
-        parser.error("--jobfit-limit 必须是正整数")
     if args.latency_repeats <= 0:
         parser.error("--latency-repeats 必须是正整数")
     if args.llm == "none":
-        skipped = [s for s in suites if s in ("jobfit", "latency")]
+        skipped = [s for s in suites if s in ("latency",)]
         if skipped:
             print(f"[提示] --llm none，跳过：{', '.join(skipped)}")
-        suites = [s for s in suites if s not in ("jobfit", "latency")]
+        suites = [s for s in suites if s not in ("latency",)]
     if not suites:
         parser.error("当前模型选项下没有可运行的评测类别")
     needs_embedder = any(s in ("lifecycle", "latency") for s in suites)
     models = Models(args.embedder if needs_embedder else "hash",
-                    args.llm if any(s in ("jobfit", "latency") for s in suites) else "none")
+                    args.llm if any(s in ("latency",) for s in suites) else "none")
 
     name = args.name or _default_run_name(
         suites, args.embedder, args.llm,
-        jobfit_limit=args.jobfit_limit, latency_repeats=args.latency_repeats,
+        latency_repeats=args.latency_repeats,
     )
     try:
         out_dir = _create_result_directory(
@@ -1228,7 +1110,6 @@ def main() -> None:
         "extraction": lambda: run_extraction(args.cases),
         "consent": lambda: run_consent(args.cases),
         "lifecycle": lambda: run_lifecycle(args.cases, models),
-        "jobfit": lambda: run_jobfit(args.cases, models, args.jobfit_limit),
         "latency": lambda: run_latency(args.cases, models, args.latency_repeats),
     }
     for suite in suites:
@@ -1256,7 +1137,7 @@ def main() -> None:
         "python": f"{platform.python_version()} ({platform.system()})",
         "sqlite": sqlite_info(),
         "implementation": implementation_metadata(models.config),
-        "run_options": {"jobfit_limit": args.jobfit_limit, "latency_repeats": args.latency_repeats},
+        "run_options": {"latency_repeats": args.latency_repeats},
         "executed_case_ids": {key: [r["id"] for r in rows] for key, rows in details.items()},
         "output_dir": str(out_dir),
     }

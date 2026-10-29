@@ -1,7 +1,7 @@
-"""Model-proposed facts with a small, validated schema and verbatim evidence.
+"""由模型提出事实，使用精简结构进行校验，并要求提供原文证据。
 
-This component has no storage or authorization capability. The rule extractor
-remains useful for explicit operation guards and offline diagnostic comparisons.
+此组件不具备存储或授权能力。规则提取器仍用于
+显式操作的边界判断，以及离线诊断对比。
 """
 
 from __future__ import annotations
@@ -45,16 +45,16 @@ class ModelMemoryExtractor:
         if guards.has_non_user_context(text) or guards().is_forget_request(text):
             self.last_trace.update(status="skipped", reason="quoted_hypothetical_or_operation")
             return []
-        # Pure questions and greetings need no second model call. Statements
-        # can use any wording; no first-person keyword or fact regex is needed.
+        # 纯问题和问候不需要额外调用模型提取事实。陈述句
+        # 可以采用不同表述，无须匹配第一人称关键词或事实正则表达式。
         clauses = guards._clauses(text)
         if text.strip("。！! ").lower() in {"你好", "您好", "hi", "hello", "谢谢"} or all(
             guards._is_question_clause(clause) for clause in clauses
         ):
             self.last_trace.update(status="skipped", reason="question_or_greeting")
             return []
-        # Standalone operation words cannot support a personal fact. Keep the
-        # original message intact for the separate consent policy.
+        # 单独的操作词不足以构成个人事实。保留完整原话，
+        # 供独立的保存授权策略判断。
         evidence_clauses = [clause for clause in clauses
                             if not guards._is_question_clause(clause) and not re.fullmatch(
                                 r"(?:请|请帮我|帮我|麻烦|务必)?(?:记住|记下来|保存|保存到长期记忆)[，,。！!；;：:\s]*", clause)]

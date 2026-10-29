@@ -1,4 +1,4 @@
-"""Read-only RAG workflow with deterministic discrete-memory routing."""
+"""只读 RAG 流程，使用确定性规则对离散记忆相关请求进行路由。"""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class RouteDecision:
 
 
 class SimpleQueryPolicy:
-    """Small rule router; persistent side effects stay deterministic."""
+    """轻量规则路由器；持久化操作仍由确定性程序逻辑控制。"""
 
     def __init__(self, extractor=None):
         self.extractor = extractor or DiscreteMemoryExtractor()
@@ -83,7 +83,7 @@ class RAGPipeline:
         self.last_context_policy = {}
 
     def build_system_prompt(self, answer_mode):
-        """Select answer constraints for Ollama's actual system message."""
+        """为实际发送给 Ollama 的系统消息选择回答约束。"""
         instructions = {
             "general": "正常闲聊或回答知识问题，没有记忆也可以交流。",
             "personal": "个人事实只依据用户本人明确陈述和已确认记忆；未提供就说明不知道。建议可以结合常识。",
@@ -105,7 +105,7 @@ class RAGPipeline:
 """.strip()
 
     def build_messages(self, query, contexts, answer_mode, *, user_facts=None):
-        """Keep conversation roles separate from retrieved background data."""
+        """将对话角色消息与检索得到的背景资料分开组织。"""
         latest = {}
         for turn in self.mm.short_term_history + [{"q": query, "facts": user_facts or []}]:
             if self.mm.extractor.has_non_user_context(turn["q"]):
@@ -122,8 +122,8 @@ class RAGPipeline:
         )
         memory_context = contexts["memory_context"]
         if latest and not asks_saved and "memory_records" in contexts:
-            # Hide only matching scalar slots for this answer. SQLite/FAISS
-            # keep their original values until the user authorizes a write.
+            # 仅在本轮回答中屏蔽相同单值槽位的旧值。SQLite 和 FAISS
+            # 在用户授权写入前仍保留原有值。
             memory_context = "\n".join(record["text"] for record in contexts["memory_records"]
                                        if record["slot"] not in latest) or "无。"
         self.last_context_policy = {
@@ -148,8 +148,8 @@ class RAGPipeline:
             )
         for turn in self.mm.short_term_history:
             if answer_mode == "personal":
-                # Do not promote quoted speakers or a past model's inventions
-                # into evidence about the user.
+                # 不把引文中其他说话者的内容或模型过去编造的内容
+                # 当作用户本人的事实证据。
                 if self.mm.extractor.has_non_user_context(turn["q"]):
                     continue
             messages.append({"role": "user", "content": turn["q"]})
@@ -160,8 +160,8 @@ class RAGPipeline:
             current_message += ("\n\n请直接回答这条消息中的问题，不要把问题反问给用户："
                                 + self.mm.extractor.question_text(query))
         if self.mm.extractor.has_non_user_context(query):
-            # Keep the source boundary next to the quoted/conditional message,
-            # rather than relying on a distant generic system instruction.
+            # 在引用或条件式消息附近标明来源边界，
+            # 避免只依赖距离较远的通用系统指令。
             current_message = (
                 f"用户原话：\n{query}\n\n"
                 "回答要求：这条消息是引用、转述或条件语境，不是用户在确认个人信息。"
@@ -176,7 +176,7 @@ class RAGPipeline:
         return self.execute(query, decision)
 
     def execute(self, query, decision, *, user_facts=None):
-        """Execute one validated route decision without routing a second time."""
+        """执行已校验的路由决策，不再重复判断路由。"""
 
         query = (query or "").strip()
         self.last_route_decision = decision
@@ -224,7 +224,7 @@ class RAGPipeline:
         if callable(chat):
             answer = chat(messages)
         else:
-            # Existing lightweight test doubles can still implement ask only.
+            # 兼容仅实现 ask 方法的已有轻量测试替身。
             prompt = "\n\n".join(f"{item['role']}: {item['content']}" for item in messages[1:])
             answer = self.llm.ask(prompt, system=messages[0]["content"])
         self.mm.add_to_short_term(query, answer)

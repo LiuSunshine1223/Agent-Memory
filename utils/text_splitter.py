@@ -1,4 +1,4 @@
-"""Sentence-aware text chunking for the base knowledge document."""
+"""按句子边界对基础知识文档进行分块。"""
 
 import re
 

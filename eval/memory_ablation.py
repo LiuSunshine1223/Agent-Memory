@@ -1,12 +1,12 @@
-"""Paired read-side ablation: identical questions with/without retrieved memory.
+"""检索侧配对消融：对相同问题，比较提供与不提供检索记忆的结果。
 
 python eval/memory_ablation.py
 python eval/memory_ablation.py --device cpu
 python eval/memory_ablation.py --summarize eval/results/<run>
 
-Correct synthetic memories enter through product APIs, not the LLM extractor.
-Both arms call the real chat model with the existing product system prompt.
-The only intervention is removing memory_context; answer shortcuts are bypassed.
+正确的合成记忆通过应用接口写入，不经过大模型提取器。
+两组均使用现有应用系统提示词调用真实聊天模型。
+唯一的干预是移除 memory_context，并绕过直接返回固定回答的分支。
 """
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def load_cases(path):
 
 
 def seed_case(runtime, case):
-    """Exercise real product writes/updates/deletes using controlled fixtures."""
+    """使用受控测试数据验证真实应用的写入、更新和删除操作。"""
     from memory.extractor import ExtractedMemory
     from memory.model_extractor import ModelMemoryExtractor
     app = runtime.application
@@ -98,8 +98,8 @@ def seed_case(runtime, case):
     assert {(r["memory_id"], r["slot"], r["value"]) for r in projection} == {
         (r["memory_id"], r["slot"], r["value"]) for r in active
     }
-    # A new session cannot see source messages. Only explicit control cases
-    # supply recent history, identically to both arms.
+    # 新会话无法看到来源会话的消息。仅明确设置的对照用例
+    # 会提供近期历史，且两组获得完全相同的历史。
     app.create_session("独立提问会话")
     app.manager.short_term_history = copy.deepcopy(case.get("history", []))
     return {"active": active, "pending": pending, "state_checks_passed": True}
@@ -120,7 +120,7 @@ def paired_messages(engine, case):
         "with_memory": engine.build_messages(case["question"], contexts, mode, user_facts=case.get("current_facts")),
         "without_memory": engine.build_messages(case["question"], masked, mode, user_facts=case.get("current_facts")),
     }
-    # The conversation and non-memory background must be identical.
+    # 两组的对话内容和非记忆背景必须完全相同。
     assert messages["with_memory"][1:] == messages["without_memory"][1:]
     assert engine.mm.short_term_history == case.get("history", [])
     return messages, {
@@ -130,7 +130,7 @@ def paired_messages(engine, case):
 
 
 def keyword_check(case, answer, error=None):
-    """Only a screening signal: negation, contradictions and inventions need review."""
+    """仅作为初步筛查信号；否定、矛盾和编造内容仍需人工复核。"""
     normalized = "".join(answer.lower().split())
     groups_ok = all(any("".join(term.lower().split()) in normalized for term in group)
                     for group in case.get("required", []))

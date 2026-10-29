@@ -1,4 +1,4 @@
-"""Persistent product data for the local-first DiscreteMemory application."""
+"""优先在本地运行的 DiscreteMemory 应用的持久化数据组件。"""
 
 from .store import (
     ConflictError,

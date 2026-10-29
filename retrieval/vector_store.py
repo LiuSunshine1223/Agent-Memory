@@ -1,4 +1,4 @@
-"""FAISS storage with aligned text and discrete-memory metadata."""
+"""FAISS 存储层，保持向量、文本和离散记忆元数据的对应关系。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import numpy as np
 
 
 class VectorStore:
-    """Persist vectors, texts and metadata in one single-process store."""
+    """在单进程存储中持久化向量、文本和元数据。"""
 
     SNAPSHOT_VERSION = 1
 
@@ -100,11 +100,11 @@ class VectorStore:
             return list(range(start, start + len(texts)))
 
     def replace_all(self, texts, embeddings, metadatas=None):
-        """Replace the complete store and persist it as one snapshot.
+        """整体替换存储内容，并作为一个快照持久化。
 
-        Document updates and privacy-driven hard deletion need physical index
-        rebuilds because ``IndexFlatL2`` has no stable external record IDs.
-        The previous in-memory state is restored when persistence fails.
+        文档更新和隐私相关的物理删除需要重建索引，
+        因为 IndexFlatL2 不提供稳定的外部记录标识。
+        持久化失败时恢复此前的内存状态。
         """
 
         texts = list(texts)
@@ -148,7 +148,7 @@ class VectorStore:
                 raise
 
     def purge_records(self, filters):
-        """Physically remove matching records and rebuild the flat index."""
+        """物理移除匹配记录，并重建平面向量索引。"""
 
         if not filters:
             raise ValueError("purge_records requires at least one filter")
